@@ -6,7 +6,6 @@ namespace Jelly_Software
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Version 1.0");
             ImdbService.TVShowMain().Wait();
         }
     }

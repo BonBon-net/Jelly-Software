@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using static Jelly_Software.preBuildTools;
+using System.Globalization;
 
 namespace Jelly_Software.Tools
 {
@@ -21,6 +22,7 @@ namespace Jelly_Software.Tools
             {
                 try
                 {
+                    Console.WriteLine("Version 1.0.3");
                     Console.Write("Insert 'Help' for more infomation!\nInsert Tv Show Folder Path\n> ");
                     string folderPath = Console.ReadLine() ?? throw new NullReferenceException();
                     if (folderPath.ToLower() == "Help".ToLower())
@@ -118,31 +120,46 @@ namespace Jelly_Software.Tools
                             warnings = new string[] { };
                             dashAfterImdb = GetUserConfirmation(question, charAnswers, warnings);
 
-                            if (tvShowFolderName != $"{showMetadata.ShowTitle} ({showMetadata.ShowYear}) [imdbid-{showMetadata.ShowImdbId}]")
+                            Console.WriteLine();
+                            question = new string[2] { "Last chance to cancel", "Continue" };
+                            charAnswers = new char[2] { 'Y', 'N' };
+                            warnings = new string[] { };
+                            bool lastChance = GetUserConfirmation(question, charAnswers, warnings);
+
+                            if (!lastChance)
                             {
-                                Console.WriteLine($"\nWarning: The folder name '{tvShowFolderName}' does not match the expected format '{showMetadata.ShowTitle} ({showMetadata.ShowYear}) [imdbid-{showMetadata.ShowImdbId}]'.");
-                                question = new string[2] { "Do you want to rename the folder name with the expected format & continue?", "Do you want to cancel?" };
-                                charAnswers = new char[2] { '1', '2' };
-                                warnings = new string[] { };
-                                bool userConfirmation = GetUserConfirmation(question, charAnswers, warnings);
-                                if (userConfirmation)
+                                if (tvShowFolderName != $"{showMetadata.ShowTitle} ({showMetadata.ShowYear}) [imdbid-{showMetadata.ShowImdbId}]")
                                 {
-                                    RenameFileOrFolder(showMetadata.FolderPath, $"{GoToParentDirectory(showMetadata.FolderPath)}\\{showMetadata.ShowTitle} ({showMetadata.ShowYear}) [imdbid-{showMetadata.ShowImdbId}]");
-                                    ChanceFilesName(showMetadata, EditFiles, UseEpisodeReleaseYear, AllowEpisodeName, AllowImdb, dashAfterReleaseYear, dashAfterSeasonEpisode, dashAfterImdb);
+                                    Console.WriteLine($"\nWarning: The folder name '{tvShowFolderName}' does not match the expected format '{showMetadata.ShowTitle} ({showMetadata.ShowYear}) [imdbid-{showMetadata.ShowImdbId}]'.");
+                                    question = new string[2] { "Do you want to rename the folder name with the expected format & continue?", "Do you want to cancel?" };
+                                    charAnswers = new char[2] { '1', '2' };
+                                    warnings = new string[] { };
+                                    bool userConfirmation = GetUserConfirmation(question, charAnswers, warnings);
+                                    if (userConfirmation)
+                                    {
+                                        string newParentDirectory = $"{GoToParentDirectory(showMetadata.FolderPath)}\\{showMetadata.ShowTitle} ({showMetadata.ShowYear}) [imdbid-{showMetadata.ShowImdbId}]";
+                                        RenameFileOrFolder(showMetadata.FolderPath, newParentDirectory);
+                                        showMetadata.FolderPath = newParentDirectory;
+                                        ChanceFilesName(showMetadata, EditFiles, UseEpisodeReleaseYear, AllowEpisodeName, AllowImdb, dashAfterReleaseYear, dashAfterSeasonEpisode, dashAfterImdb);
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("\n\nOperation cancelled by the user.");
+                                    }
                                 }
                                 else
                                 {
-                                    Console.WriteLine("Operation cancelled by the user.");
+                                    ChanceFilesName(showMetadata, EditFiles, UseEpisodeReleaseYear, AllowEpisodeName, AllowImdb, dashAfterReleaseYear, dashAfterSeasonEpisode, dashAfterImdb);
                                 }
                             }
                             else
                             {
-                                ChanceFilesName(showMetadata, EditFiles, UseEpisodeReleaseYear, AllowEpisodeName, AllowImdb, dashAfterReleaseYear, dashAfterSeasonEpisode, dashAfterImdb);
+                                Console.WriteLine("\n\nOperation cancelled by the user.");
                             }
                         }
                         else
                         {
-                            Console.WriteLine("Operation cancelled by the user.");
+                            Console.WriteLine("\n\nOperation cancelled by the user.");
                         }
                     }
                 }
@@ -162,6 +179,8 @@ namespace Jelly_Software.Tools
         {
             List<FileInfo> files = new List<FileInfo>();
             List<DirectoryInfo> directories = new List<DirectoryInfo>();
+
+            List<string> errorMassages = new List<string>();
 
             Console.WriteLine();
             Console.WriteLine("Renaming files and folders...");
@@ -192,7 +211,8 @@ namespace Jelly_Software.Tools
 
                     if (metaSeasonIndex < 0 || metaSeasonIndex >= showMetadata.Seasons.Count)
                     {
-                        Console.WriteLine($"\n[ERROR] Metadata for Season {parsedSeasonNum} not found. Skipping folder.");
+                        errorMassages.Add($"[ERROR] Metadata for Season {parsedSeasonNum} not found. Skipping folder.");
+                        Console.WriteLine($"\n{errorMassages.Last()}");
                         directories.RemoveAt(i);
                         seasonSkippedCount++;
                         continue;
@@ -246,20 +266,54 @@ namespace Jelly_Software.Tools
                         continue;
                     }
 
-                    Match match = Regex.Match(fileName, @"(?i)(?:s|season\s*)(\d+)[ .\-]*(?:e|episode\s*)(\d+)(?:[ .\-]+(?:e|episode\s*)(\d+))?");
+                    // Strip the file extension so we don't accidentally parse numbers inside ".mp4" etc.
+                    string nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+
+                    // 1. Try explicit Season AND Episode formats (e.g., S02E05, 2x05, 02.05, 2x05-06)
+                    Match fullMatch = Regex.Match(nameWithoutExt, @"(?i)(?:s|season\s*)?(\d+)(?:[ .\-x]+|(?:e|episode\s*|x))(\d+)(?:[ .\-x]+(?:e|episode\s*|x)?(\d+))?");
+
+                    // 2. Try standalone Episode formats with unlimited digits (e.g., 05, 104, 05-06)
+                    Match epOnlyMatch = Regex.Match(nameWithoutExt, @"(?i)(?:^|[ \-])(?:e|episode\s*)?(\d+)(?:[ .\-x]+(?:e|episode\s*)?(\d+))?\b");
 
                     // Extract existing IMDb ID from the original file name if it exists
                     Match imdbMatch = Regex.Match(fileName, @"(?i)(tt\d{7,10})");
                     string extractedImdbId = imdbMatch.Success ? imdbMatch.Groups[1].Value.ToLower() : string.Empty;
 
-                    if (match.Success)
+                    bool isMatched = false;
+                    int seasonNum = 0, episode1Num = 0, episode2Num = 0;
+                    bool hasMultiPart = false;
+
+                    if (fullMatch.Success)
                     {
-                        int seasonNum = int.Parse(match.Groups[1].Value);
-                        int episode1Num = int.Parse(match.Groups[2].Value);
+                        // We found both Season and Episode in the file name
+                        seasonNum = int.Parse(fullMatch.Groups[1].Value);
+                        episode1Num = int.Parse(fullMatch.Groups[2].Value);
+                        if (fullMatch.Groups[3].Success)
+                        {
+                            hasMultiPart = true;
+                            episode2Num = int.Parse(fullMatch.Groups[3].Value);
+                        }
+                        isMatched = true;
+                    }
+                    else if (epOnlyMatch.Success)
+                    {
+                        // We ONLY found an episode number, so we grab the season from the folder loop!
+                        seasonNum = currentSeasonNum;
+                        episode1Num = int.Parse(epOnlyMatch.Groups[1].Value);
+                        if (epOnlyMatch.Groups[2].Success)
+                        {
+                            hasMultiPart = true;
+                            episode2Num = int.Parse(epOnlyMatch.Groups[2].Value);
+                        }
+                        isMatched = true;
+                    }
+
+                    if (isMatched)
+                    {
                         string formattedEpisodeString = $"S{seasonNum:D2}E{episode1Num:D2}";
 
-                        if (match.Groups[3].Success)
-                            formattedEpisodeString += $"-E{int.Parse(match.Groups[3].Value):D2}";
+                        if (hasMultiPart)
+                            formattedEpisodeString += $"-E{episode2Num:D2}";
 
                         if (!episodeGroups.ContainsKey(formattedEpisodeString))
                             episodeGroups[formattedEpisodeString] = new List<(FileInfo, string, int, string)>();
@@ -282,7 +336,8 @@ namespace Jelly_Software.Tools
 
                     if (epIndex < 0 || epIndex >= showMetadata.Seasons[metaSeasonIndex].Episodes.Count)
                     {
-                        Console.WriteLine($"\n[ERROR] Skipping '{epString}': Metadata only has {showMetadata.Seasons[metaSeasonIndex].Episodes.Count} episodes for Season {currentSeasonNum}.");
+                        errorMassages.Add($"[ERROR] Skipping '{epString}': Metadata only has {showMetadata.Seasons[metaSeasonIndex].Episodes.Count} episodes for Season {currentSeasonNum}.");
+                        Console.WriteLine($"\n{errorMassages.Last()}");
                         episodeSkippedCount += filesInGroup.Count;
                         continue;
                     }
@@ -435,6 +490,14 @@ namespace Jelly_Software.Tools
                         }
                     }
                 }
+            }
+
+            if (errorMassages.Count > 0)
+            {
+                Console.WriteLine($"\n\n");
+                for (int i = 0; i < errorMassages.Count; i++)
+                    Console.WriteLine($"{i + 1}) {errorMassages[i]}");
+                Console.WriteLine($"\n\nTotal Errors: {errorMassages.Count.ToString("N0", new CultureInfo("de-DE"))}");
             }
         }
 
