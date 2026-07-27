@@ -123,7 +123,7 @@ namespace Jelly_Software.Tools
                             Console.WriteLine();
                             question = new string[2] { "Last chance to cancel", "Continue" };
                             charAnswers = new char[2] { 'Y', 'N' };
-                            warnings = new string[] { };
+                            warnings = new string[] { "This is the last chance before all the file's will be rename'd !!!" };
                             bool lastChance = GetUserConfirmation(question, charAnswers, warnings);
 
                             if (!lastChance)
@@ -670,8 +670,8 @@ namespace Jelly_Software.Tools
             Console.WriteLine("\n4) The application will then fetch and display metadata for the show, including seasons and episodes.");
             Console.WriteLine("\n5) Insert 'Break', 'Stop' or 'Exit' to leave this application");
             Console.WriteLine("\n6) In case of console is frozen try & press enter");
-            Console.WriteLine("\n7) Be aware if a season folder has same episode number it'll pause until question answered by a user");
-            Console.WriteLine("\n8) This software has not been testen on Season 0");
+            Console.WriteLine("\n7) Be aware if a season folder has episode's with the number it'll pause until question answered by a user");
+            Console.WriteLine("\n8) This software has not been test'd on Season 0");
         }
 
         public class ShowMediaMetadata
