@@ -27,7 +27,7 @@ namespace Jelly_Software.Tools
             {
                 try
                 {
-                    Console.WriteLine("Version 1.0.4.1 Testing");
+                    Console.WriteLine("Version 1.0.4");
                     Console.Write("Insert 'Help' for more infomation!\nInsert Tv Show Folder Path\n> ");
                     string folderPath = Console.ReadLine() ?? throw new NullReferenceException();
 
@@ -51,71 +51,177 @@ namespace Jelly_Software.Tools
                         _rateLimitHit = false;
 
                         ShowMediaMetadata showMetadata = null;
+                        ShowMediaMetadata initialShowMetadata = null;
                         bool needsManualSelection = false;
 
-                        try
-                        {
-                            // Test initial fetch to verify if IMDb ID data matches folder name/year
-                            showMetadata = await GetShowAsync(imdbId, tvShowFolderName);
+                        // Check if IMDb ID is a placeholder like tt0000000
+                        bool isPlaceholderImdb = imdbId.Equals("tt0000000", StringComparison.OrdinalIgnoreCase) || Regex.IsMatch(imdbId, @"^tt0{7,}$");
 
-                            if (!showMetadata.ShowTitle.Equals(tvShowName, StringComparison.OrdinalIgnoreCase) ||
-                                showMetadata.ShowYear.ToString() != releaseYear)
+                        if (isPlaceholderImdb)
+                        {
+                            Console.WriteLine($"\n[WARNING] Placeholder IMDb ID '{imdbId}' detected. Ignoring IMDb ID and searching database...");
+                            needsManualSelection = true;
+                        }
+                        else
+                        {
+                            try
                             {
-                                Console.WriteLine($"\n[WARNING] Folder name '{tvShowName} ({releaseYear})' doesn't perfectly match the fetched data: '{showMetadata.ShowTitle} ({showMetadata.ShowYear})'.");
+                                // Test initial fetch to verify if IMDb ID data matches folder name/year
+                                initialShowMetadata = await GetShowAsync(imdbId, tvShowFolderName);
+
+                                int.TryParse(releaseYear, out int folderYearInt);
+                                bool titleMatches = initialShowMetadata.ShowTitle.Equals(tvShowName, StringComparison.OrdinalIgnoreCase);
+                                bool yearMatches = folderYearInt == 0 || initialShowMetadata.ShowYear == folderYearInt;
+
+                                if (!titleMatches || !yearMatches)
+                                {
+                                    Console.WriteLine($"\n[WARNING] Folder name '{tvShowName} ({releaseYear})' doesn't perfectly match the fetched data: '{initialShowMetadata.ShowTitle} ({initialShowMetadata.ShowYear})'.");
+                                    needsManualSelection = true;
+                                }
+                                else
+                                {
+                                    showMetadata = initialShowMetadata;
+                                }
+                            }
+                            catch
+                            {
+                                Console.WriteLine($"\n[WARNING] Could not automatically pull exact match for IMDb ID: {imdbId}.");
                                 needsManualSelection = true;
                             }
                         }
-                        catch
-                        {
-                            Console.WriteLine($"\n[WARNING] Could not automatically pull exact match for IMDb ID: {imdbId}.");
-                            needsManualSelection = true;
-                        }
 
-                        // If there is a mismatch or API failure, search TVMaze and let user choose in release order
+                        // Build manual selection list if there's a mismatch, API failure, or placeholder IMDb ID
                         if (needsManualSelection)
                         {
-                            Console.WriteLine($"Searching database for '{tvShowName}'...");
-                            var searchResults = await SearchTvMazeAsync(tvShowName);
+                            var searchResults = new List<SearchResult>();
 
+                            // 1. If an initial show was successfully fetched via the provided IMDb ID, add it to the list first
+                            if (initialShowMetadata != null && !isPlaceholderImdb)
+                            {
+                                searchResults.Add(new SearchResult
+                                {
+                                    Title = initialShowMetadata.ShowTitle,
+                                    Year = initialShowMetadata.ShowYear,
+                                    ImdbId = initialShowMetadata.ShowImdbId,
+                                    Type = "Scripted"
+                                });
+                            }
+
+                            // 2. Perform multi-query search to get options (including variations like dropping trailing 's' or leading 'The')
+                            string cleanTvShowName = Regex.Replace(tvShowName, @"\s*\(\d{4}\)|\s*\[.*?\]", "").Trim();
+                            Console.WriteLine($"Searching database for variations of '{cleanTvShowName}'...");
+
+                            var rawSearchResults = await SearchTvMazeMultipleAsync(cleanTvShowName);
+
+                            foreach (var res in rawSearchResults)
+                            {
+                                // Check if result is a movie or TV show
+                                if (res.Type.Equals("TV Movie", StringComparison.OrdinalIgnoreCase) || res.Type.Equals("Movie", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    Console.WriteLine($"\n[WARNING] '{res.Title} ({res.Year})' is classified as a movie ({res.Type}), skipping from TV show selection list.");
+                                }
+                                else
+                                {
+                                    // Add to list only if it's not already added (prevent duplicates)
+                                    if (!searchResults.Any(s => s.ImdbId.Equals(res.ImdbId, StringComparison.OrdinalIgnoreCase)))
+                                    {
+                                        searchResults.Add(res);
+                                    }
+                                }
+                            }
+
+                            // Handle zero search results with manual IMDb option
                             if (searchResults.Count == 0)
                             {
-                                Console.WriteLine("No alternative shows found on TVMaze. Canceling operation.");
-                                Ending();
-                                continue;
-                            }
+                                Console.WriteLine("No alternative TV shows found on TVMaze.");
+                                string[] manualQ = new string[] { "Would you like to manually enter a correct IMDb ID?", "Cancel operation" };
+                                char[] manualA = new char[] { 'Y', 'N' };
+                                bool wantManual = GetUserConfirmation(manualQ, manualA, new string[] { });
 
-                            Console.WriteLine("\nFound multiple possibilities. Please confirm which series this is:");
-                            for (int i = 0; i < searchResults.Count; i++)
-                            {
-                                Console.WriteLine($"  [{i + 1}] {searchResults[i].Title} ({searchResults[i].Year}) - IMDb ID: {searchResults[i].ImdbId}");
-                            }
-                            Console.WriteLine($"  [0] None of these (Cancel)");
-
-                            int selectedIdx = -1;
-                            while (true)
-                            {
-                                Console.Write("\nEnter the number of the correct show > ");
-                                string choice = Console.ReadLine()?.Trim() ?? string.Empty;
-
-                                if (int.TryParse(choice, out selectedIdx) && selectedIdx >= 0 && selectedIdx <= searchResults.Count)
+                                if (wantManual)
                                 {
-                                    break;
+                                    Console.Write("Enter the correct IMDb ID (e.g., tt0182576) > ");
+                                    string manualImdb = Console.ReadLine()?.Trim() ?? string.Empty;
+
+                                    if (!string.IsNullOrEmpty(manualImdb) && manualImdb.StartsWith("tt", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        imdbId = manualImdb;
+                                        showMetadata = await GetShowAsync(imdbId, tvShowFolderName);
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("Invalid IMDb ID format. Canceling operation.");
+                                        Ending();
+                                        continue;
+                                    }
                                 }
-                                Console.WriteLine("Invalid input. Please enter a valid number from the list.");
+                                else
+                                {
+                                    Console.WriteLine(operationCancelled);
+                                    Ending();
+                                    continue;
+                                }
                             }
-
-                            if (selectedIdx == 0)
+                            else
                             {
-                                Console.WriteLine(operationCancelled);
-                                Ending();
-                                continue;
+                                Console.WriteLine("\nFound multiple possibilities. Please confirm which series this is:");
+                                for (int i = 0; i < searchResults.Count; i++)
+                                {
+                                    Console.WriteLine($"  [{i + 1}] {searchResults[i].Title} ({searchResults[i].Year}) - IMDb ID: {searchResults[i].ImdbId}");
+                                }
+                                Console.WriteLine($"  [0] None of these (Cancel)");
+
+                                int selectedIdx = -1;
+                                while (true)
+                                {
+                                    Console.Write("\nEnter the number of the correct show > ");
+                                    string choice = Console.ReadLine()?.Trim() ?? string.Empty;
+
+                                    if (int.TryParse(choice, out selectedIdx) && selectedIdx >= 0 && selectedIdx <= searchResults.Count)
+                                    {
+                                        break;
+                                    }
+                                    Console.WriteLine("Invalid input. Please enter a valid number from the list.");
+                                }
+
+                                if (selectedIdx == 0)
+                                {
+                                    Console.WriteLine(operationCancelled);
+                                    Ending();
+                                    continue;
+                                }
+
+                                var selectedShow = searchResults[selectedIdx - 1];
+                                string newImdbId = selectedShow.ImdbId;
+
+                                // If placeholder was used and a new IMDb ID was found, ask user if they want to replace it
+                                if (isPlaceholderImdb && !string.IsNullOrEmpty(newImdbId))
+                                {
+                                    Console.WriteLine();
+                                    string[] repQ = new string[] { $"Would you like to replace the current IMDb ID ({imdbId}) with the new IMDb ID ({newImdbId})?", "Keep current / Cancel" };
+                                    char[] repA = new char[] { 'Y', 'N' };
+                                    string[] repW = new string[] { };
+                                    bool replaceImdb = GetUserConfirmation(repQ, repA, repW);
+
+                                    if (replaceImdb)
+                                    {
+                                        imdbId = newImdbId;
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine(operationCancelled);
+                                        Ending();
+                                        continue;
+                                    }
+                                }
+                                else if (!isPlaceholderImdb && !imdbId.Equals(newImdbId, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    imdbId = newImdbId;
+                                }
+
+                                // Temporarily fetch to populate showMetadata for confirmation
+                                showMetadata = await GetShowAsync(imdbId, tvShowFolderName);
                             }
-
-                            var selectedShow = searchResults[selectedIdx - 1];
-                            imdbId = selectedShow.ImdbId;
-
-                            // Temporarily fetch to populate showMetadata for confirmation
-                            showMetadata = await ImdbService.GetShowAsync(imdbId, tvShowFolderName);
                         }
 
                         // Final confirmation check with the user before proceeding
@@ -123,18 +229,13 @@ namespace Jelly_Software.Tools
                         string[] confirmQ = new string[] { $"Is this the correct TV Show: {showMetadata.ShowTitle} ({showMetadata.ShowYear})?", "Cancel operation" };
                         char[] confirmA = new char[] { 'Y', 'N' };
                         string[] confirmWarnings = new string[] { };
-
                         bool confirmShow = GetUserConfirmation(confirmQ, confirmA, confirmWarnings);
 
                         if (confirmShow)
                         {
-
-                            // Now print the standard fetching log message right before full processing
                             Console.WriteLine($"\nFetching metadata for IMDb ID: {imdbId} and folder: {tvShowFolderName}...\n");
 
                             showMetadata.FolderPath = folderPath;
-
-                            // Spacing logic: If we hit a rate limit, leave exactly 3 blank lines.
                             if (_rateLimitHit)
                             {
                                 Console.Write("\n\n\n\n");
@@ -162,10 +263,35 @@ namespace Jelly_Software.Tools
                             Console.WriteLine("\nMetadata fetched successfully!");
                             Console.WriteLine();
 
+                            // Sanitize title to remove OS illegal file/folder characters before building expected folder name
+                            string safeShowTitle = string.Concat(showMetadata.ShowTitle.Where(c => !Path.GetInvalidFileNameChars().Contains(c))).Trim();
+                            string expectedFolderName = $"{safeShowTitle} ({showMetadata.ShowYear}) [imdbid-{showMetadata.ShowImdbId}]";
+
+                            if (tvShowFolderName != expectedFolderName)
+                            {
+                                Console.WriteLine();
+                                string[] folderQ = new string[]
+                                {
+                                    $"Rename parent folder from '{tvShowFolderName}' to '{expectedFolderName}'?",
+                                    "Keep current folder name"
+                                };
+                                char[] folderA = new char[] { 'Y', 'N' };
+                                bool renameFolder = GetUserConfirmation(folderQ, folderA, new string[] { });
+
+                                if (renameFolder)
+                                {
+                                    string newParentDirectory = $"{GoToParentDirectory(showMetadata.FolderPath)}\\{expectedFolderName}";
+                                    RenameFileOrFolder(showMetadata.FolderPath, newParentDirectory);
+                                    showMetadata.FolderPath = newParentDirectory;
+                                    tvShowFolderName = expectedFolderName;
+                                    Console.WriteLine($"Parent folder renamed successfully to: {expectedFolderName}");
+                                }
+                            }
+
+                            Console.WriteLine();
                             string[] question = new string[2] { "Would you like to rename the tv show files", "Would you like to cancel?" };
                             char[] charAnswers = new char[2] { 'Y', 'N' };
                             string[] warnings = new string[] { };
-
                             bool EditFiles = GetUserConfirmation(question, charAnswers, warnings);
                             bool UseEpisodeReleaseYear = false;
                             bool dashAfterReleaseYear = false;
@@ -223,32 +349,7 @@ namespace Jelly_Software.Tools
 
                                 if (!lastChance)
                                 {
-                                    if (tvShowFolderName != $"{showMetadata.ShowTitle} ({showMetadata.ShowYear}) [imdbid-{showMetadata.ShowImdbId}]")
-                                    {
-                                        Console.WriteLine($"\nWarning: The folder name '{tvShowFolderName}' does not match the expected format '{showMetadata.ShowTitle} ({showMetadata.ShowYear}) [imdbid-{showMetadata.ShowImdbId}]'.");
-                                        question = new string[2] { "Do you want to rename the folder name with the expected format & continue?", "Do you want to cancel?" };
-                                        charAnswers = new char[2] { '1', '2' };
-                                        warnings = new string[] { };
-
-                                        bool userConfirmation = GetUserConfirmation(question, charAnswers, warnings);
-                                        if (userConfirmation)
-                                        {
-                                            string newParentDirectory = $"{GoToParentDirectory(showMetadata.FolderPath)}\\{showMetadata.ShowTitle} ({showMetadata.ShowYear}) [imdbid-{showMetadata.ShowImdbId}]";
-                                            RenameFileOrFolder(showMetadata.FolderPath, newParentDirectory);
-                                            showMetadata.FolderPath = newParentDirectory;
-                                            ChanceFilesName(showMetadata, EditFiles, UseEpisodeReleaseYear, AllowEpisodeName, AllowImdb, dashAfterReleaseYear, dashAfterSeasonEpisode, dashAfterImdb);
-                                        }
-                                        else
-                                        {
-                                            Console.WriteLine(operationCancelled);
-                                            Ending();
-                                            continue;
-                                        }
-                                    }
-                                    else
-                                    {
-                                        ChanceFilesName(showMetadata, EditFiles, UseEpisodeReleaseYear, AllowEpisodeName, AllowImdb, dashAfterReleaseYear, dashAfterSeasonEpisode, dashAfterImdb);
-                                    }
+                                    ChanceFilesName(showMetadata, EditFiles, UseEpisodeReleaseYear, AllowEpisodeName, AllowImdb, dashAfterReleaseYear, dashAfterSeasonEpisode, dashAfterImdb);
                                 }
                                 else
                                 {
@@ -284,7 +385,6 @@ namespace Jelly_Software.Tools
 
             void Ending()
             {
-                // Clear the console for the next iteration
                 Console.Write("\n\n\nPress any key to continue");
                 Console.ReadKey();
                 Console.Clear();
@@ -293,22 +393,22 @@ namespace Jelly_Software.Tools
 
         private class SearchResult
         {
-            public string Title { get; set; }
+            public string Title { get; set; } = string.Empty;
             public int Year { get; set; }
-            public string ImdbId { get; set; }
+            public string ImdbId { get; set; } = string.Empty;
+            public string Type { get; set; } = string.Empty;
         }
+
         private static async Task<List<SearchResult>> SearchTvMazeAsync(string showName)
         {
             var results = new List<SearchResult>();
             string url = $"https://api.tvmaze.com/search/shows?q={Uri.EscapeDataString(showName)}";
 
-            // Utilizing your existing rate limit logic
             HttpResponseMessage response = await GetWithRateLimitRetryAsync(url);
             if (!response.IsSuccessStatusCode) return results;
 
             string json = await response.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(json);
-
             foreach (var item in doc.RootElement.EnumerateArray())
             {
                 if (item.TryGetProperty("show", out var showNode))
@@ -317,6 +417,11 @@ namespace Jelly_Software.Tools
                     {
                         Title = showNode.TryGetProperty("name", out var n) ? (n.GetString() ?? "Unknown") : "Unknown"
                     };
+
+                    if (showNode.TryGetProperty("type", out var typeNode) && typeNode.ValueKind == JsonValueKind.String)
+                    {
+                        result.Type = typeNode.GetString() ?? string.Empty;
+                    }
 
                     if (showNode.TryGetProperty("premiered", out var p) && p.ValueKind == JsonValueKind.String)
                     {
@@ -336,8 +441,41 @@ namespace Jelly_Software.Tools
                 }
             }
 
-            // Order the list by release year as requested
-            return results.OrderBy(r => r.Year).ToList();
+            return results;
+        }
+
+        private static async Task<List<SearchResult>> SearchTvMazeMultipleAsync(string showName)
+        {
+            var allResults = new List<SearchResult>();
+            var queriesToTry = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            queriesToTry.Add(showName);
+
+            // Variation 1: Try without trailing 's' (e.g. "Simpsons" -> "Simpson")
+            if (showName.EndsWith("s", StringComparison.OrdinalIgnoreCase) && showName.Length > 3)
+            {
+                queriesToTry.Add(showName.Substring(0, showName.Length - 1));
+            }
+
+            // Variation 2: Try without leading "The " (e.g. "The Simpsons" -> "Simpsons")
+            if (showName.StartsWith("The ", StringComparison.OrdinalIgnoreCase))
+            {
+                queriesToTry.Add(showName.Substring(4).Trim());
+            }
+
+            foreach (var q in queriesToTry)
+            {
+                var partialResults = await SearchTvMazeAsync(q);
+                foreach (var res in partialResults)
+                {
+                    if (!allResults.Any(r => r.ImdbId.Equals(res.ImdbId, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        allResults.Add(res);
+                    }
+                }
+            }
+
+            return allResults.OrderBy(r => r.Year).ToList();
         }
 
         private static void ChanceFilesName(ShowMediaMetadata showMetadata, bool EditFiles, bool UseEpisodeReleaseYear, bool AllowEpisodeName, bool AllowImdb, bool dashAfterReleaseYear, bool dashAfterSeasonEpisode, bool dashAfterImdb)
