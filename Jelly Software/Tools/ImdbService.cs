@@ -16,6 +16,8 @@ namespace Jelly_Software.Tools
     {
         private static readonly HttpClient _httpClient = new();
 
+        private static readonly string operationCancelled = "\n\nOperation cancelled by the user.";
+
         // Tracks if a 429 was hit during the current fetch to manage the 3-line gap
         private static bool _rateLimitHit = false;
 
@@ -25,7 +27,7 @@ namespace Jelly_Software.Tools
             {
                 try
                 {
-                    Console.WriteLine("Version 1.0.3.5");
+                    Console.WriteLine("Version 1.0.4.1 Testing");
                     Console.Write("Insert 'Help' for more infomation!\nInsert Tv Show Folder Path\n> ");
                     string folderPath = Console.ReadLine() ?? throw new NullReferenceException();
 
@@ -45,141 +47,228 @@ namespace Jelly_Software.Tools
                         string releaseYear = GetTvShowFolderReleaseYear(tvShowFolderName);
                         string imdbId = GetTvShowFolderImdbId(tvShowFolderName);
 
-                        Console.WriteLine($"\nFetching metadata for IMDb ID: {imdbId} and folder: {tvShowFolderName}...\n");
-
                         // Reset the flag for each new show search
                         _rateLimitHit = false;
 
-                        ShowMediaMetadata showMetadata = await ImdbService.GetShowAsync(imdbId, tvShowFolderName);
-                        showMetadata.FolderPath = folderPath;
+                        ShowMediaMetadata showMetadata = null;
+                        bool needsManualSelection = false;
 
-                        // Spacing logic: If we hit a rate limit, leave exactly 3 blank lines.
-                        if (_rateLimitHit)
+                        try
                         {
-                            Console.Write("\n\n\n\n");
-                            Console.WriteLine($"Show Title: {showMetadata.ShowTitle}");
-                        }
-                        else
-                        {
-                            Console.WriteLine($"\nShow Title: {showMetadata.ShowTitle}");
-                        }
+                            // Test initial fetch to verify if IMDb ID data matches folder name/year
+                            showMetadata = await GetShowAsync(imdbId, tvShowFolderName);
 
-                        Console.WriteLine($"Show Year: {showMetadata.ShowYear}");
-                        Console.WriteLine($"IMDb ID: {showMetadata.ShowImdbId}");
-                        Console.WriteLine($"Folder Path: {showMetadata.FolderName}");
-                        Console.WriteLine("Seasons and Episodes:");
-
-                        foreach (var season in showMetadata.Seasons)
-                        {
-                            Console.WriteLine($"\nSeason {season.SeasonNumber} ({season.SeasonYear}):");
-                            foreach (var episode in season.Episodes)
+                            if (!showMetadata.ShowTitle.Equals(tvShowName, StringComparison.OrdinalIgnoreCase) ||
+                                showMetadata.ShowYear.ToString() != releaseYear)
                             {
-                                Console.WriteLine($"  Episode {episode.EpisodeNumber}: {episode.EpisodeTitle} ({episode.EpisodeYear}) - IMDb ID: {episode.EpisodeImdbId}");
+                                Console.WriteLine($"\n[WARNING] Folder name '{tvShowName} ({releaseYear})' doesn't perfectly match the fetched data: '{showMetadata.ShowTitle} ({showMetadata.ShowYear})'.");
+                                needsManualSelection = true;
                             }
                         }
-
-                        Console.WriteLine("\nMetadata fetched successfully!");
-                        // EditFiles
-                        Console.WriteLine();
-
-                        string[] question = new string[2] { "Would you like to rename the tv show files", "Would you like to cancel?" };
-                        char[] charAnswers = new char[2] { 'Y', 'N' };
-                        string[] warnings = new string[] { };
-
-                        bool EditFiles = GetUserConfirmation(question, charAnswers, warnings);
-                        bool UseEpisodeReleaseYear = false;
-                        bool dashAfterReleaseYear = false;
-                        bool AllowEpisodeName = false;
-                        bool dashAfterSeasonEpisode = false;
-                        bool AllowImdb = false;
-                        bool dashAfterImdb = false;
-
-                        if (EditFiles)
+                        catch
                         {
-                            // UseEpisodeReleaseYear
-                            Console.WriteLine();
-                            question = new string[2] { "Use episode Release Year in nameing", "Use tv show Release Year in nameing" };
-                            charAnswers = new char[2] { '1', '2' };
-                            warnings = new string[] { };
-                            UseEpisodeReleaseYear = GetUserConfirmation(question, charAnswers, warnings);
+                            Console.WriteLine($"\n[WARNING] Could not automatically pull exact match for IMDb ID: {imdbId}.");
+                            needsManualSelection = true;
+                        }
 
-                            // Allow dash in between "UseEpisodeReleaseYear" & "Series Season & episode"
-                            Console.WriteLine();
-                            question = new string[2] { "Would you like too add dash '-' between (Release Year) & SxxExx", "Exclude the dash '-'" };
-                            charAnswers = new char[2] { 'Y', 'N' };
-                            warnings = new string[] { };
-                            dashAfterReleaseYear = GetUserConfirmation(question, charAnswers, warnings);
+                        // If there is a mismatch or API failure, search TVMaze and let user choose in release order
+                        if (needsManualSelection)
+                        {
+                            Console.WriteLine($"Searching database for '{tvShowName}'...");
+                            var searchResults = await SearchTvMazeAsync(tvShowName);
 
-                            // AllowEpisodeName
-                            Console.WriteLine();
-                            question = new string[2] { "Allow the usage of episode name", "Disallow the usage of episode name" };
-                            charAnswers = new char[2] { 'Y', 'N' };
-                            warnings = new string[] { };
-                            AllowEpisodeName = GetUserConfirmation(question, charAnswers, warnings);
+                            if (searchResults.Count == 0)
+                            {
+                                Console.WriteLine("No alternative shows found on TVMaze. Canceling operation.");
+                                Ending();
+                                continue;
+                            }
 
-                            if (AllowEpisodeName)
+                            Console.WriteLine("\nFound multiple possibilities. Please confirm which series this is:");
+                            for (int i = 0; i < searchResults.Count; i++)
+                            {
+                                Console.WriteLine($"  [{i + 1}] {searchResults[i].Title} ({searchResults[i].Year}) - IMDb ID: {searchResults[i].ImdbId}");
+                            }
+                            Console.WriteLine($"  [0] None of these (Cancel)");
+
+                            int selectedIdx = -1;
+                            while (true)
+                            {
+                                Console.Write("\nEnter the number of the correct show > ");
+                                string choice = Console.ReadLine()?.Trim() ?? string.Empty;
+
+                                if (int.TryParse(choice, out selectedIdx) && selectedIdx >= 0 && selectedIdx <= searchResults.Count)
+                                {
+                                    break;
+                                }
+                                Console.WriteLine("Invalid input. Please enter a valid number from the list.");
+                            }
+
+                            if (selectedIdx == 0)
+                            {
+                                Console.WriteLine(operationCancelled);
+                                Ending();
+                                continue;
+                            }
+
+                            var selectedShow = searchResults[selectedIdx - 1];
+                            imdbId = selectedShow.ImdbId;
+
+                            // Temporarily fetch to populate showMetadata for confirmation
+                            showMetadata = await ImdbService.GetShowAsync(imdbId, tvShowFolderName);
+                        }
+
+                        // Final confirmation check with the user before proceeding
+                        Console.WriteLine();
+                        string[] confirmQ = new string[] { $"Is this the correct TV Show: {showMetadata.ShowTitle} ({showMetadata.ShowYear})?", "Cancel operation" };
+                        char[] confirmA = new char[] { 'Y', 'N' };
+                        string[] confirmWarnings = new string[] { };
+
+                        bool confirmShow = GetUserConfirmation(confirmQ, confirmA, confirmWarnings);
+
+                        if (confirmShow)
+                        {
+
+                            // Now print the standard fetching log message right before full processing
+                            Console.WriteLine($"\nFetching metadata for IMDb ID: {imdbId} and folder: {tvShowFolderName}...\n");
+
+                            showMetadata.FolderPath = folderPath;
+
+                            // Spacing logic: If we hit a rate limit, leave exactly 3 blank lines.
+                            if (_rateLimitHit)
+                            {
+                                Console.Write("\n\n\n\n");
+                                Console.WriteLine($"Show Title: {showMetadata.ShowTitle}");
+                            }
+                            else
+                            {
+                                Console.WriteLine($"\nShow Title: {showMetadata.ShowTitle}");
+                            }
+
+                            Console.WriteLine($"Show Year: {showMetadata.ShowYear}");
+                            Console.WriteLine($"IMDb ID: {showMetadata.ShowImdbId}");
+                            Console.WriteLine($"Folder Path: {showMetadata.FolderName}");
+                            Console.WriteLine("Seasons and Episodes:");
+
+                            foreach (var season in showMetadata.Seasons)
+                            {
+                                Console.WriteLine($"\nSeason {season.SeasonNumber} ({season.SeasonYear}):");
+                                foreach (var episode in season.Episodes)
+                                {
+                                    Console.WriteLine($"  Episode {episode.EpisodeNumber}: {episode.EpisodeTitle} ({episode.EpisodeYear}) - IMDb ID: {episode.EpisodeImdbId}");
+                                }
+                            }
+
+                            Console.WriteLine("\nMetadata fetched successfully!");
+                            Console.WriteLine();
+
+                            string[] question = new string[2] { "Would you like to rename the tv show files", "Would you like to cancel?" };
+                            char[] charAnswers = new char[2] { 'Y', 'N' };
+                            string[] warnings = new string[] { };
+
+                            bool EditFiles = GetUserConfirmation(question, charAnswers, warnings);
+                            bool UseEpisodeReleaseYear = false;
+                            bool dashAfterReleaseYear = false;
+                            bool AllowEpisodeName = false;
+                            bool dashAfterSeasonEpisode = false;
+                            bool AllowImdb = false;
+                            bool dashAfterImdb = false;
+
+                            if (EditFiles)
                             {
                                 Console.WriteLine();
-                                question = new string[2] { "Would you like too add dash '-' between SxxExx & Episode Name", "Exclude the dash '-'" };
+                                question = new string[2] { "Use episode Release Year in nameing", "Use tv show Release Year in nameing" };
+                                charAnswers = new char[2] { '1', '2' };
+                                warnings = new string[] { };
+                                UseEpisodeReleaseYear = GetUserConfirmation(question, charAnswers, warnings);
+
+                                Console.WriteLine();
+                                question = new string[2] { "Would you like too add dash '-' between (Release Year) & SxxExx", "Exclude the dash '-'" };
                                 charAnswers = new char[2] { 'Y', 'N' };
                                 warnings = new string[] { };
-                                dashAfterSeasonEpisode = GetUserConfirmation(question, charAnswers, warnings);
-                            }
+                                dashAfterReleaseYear = GetUserConfirmation(question, charAnswers, warnings);
 
-                            // AllowImdb
-                            Console.WriteLine();
-                            question = new string[2] { "allow the usage of Imdb", "Disallow the usage of Imdb" };
-                            charAnswers = new char[2] { 'Y', 'N' };
-                            warnings = new string[] { "The 'id' from 'Imdb' is not automated due to anti-bot", "imdb id that exist in file name will be used" };
-                            AllowImdb = GetUserConfirmation(question, charAnswers, warnings);
+                                Console.WriteLine();
+                                question = new string[2] { "Allow the usage of episode name", "Disallow the usage of episode name" };
+                                charAnswers = new char[2] { 'Y', 'N' };
+                                warnings = new string[] { };
+                                AllowEpisodeName = GetUserConfirmation(question, charAnswers, warnings);
 
-                            Console.WriteLine();
-                            question = new string[2] { "Would you like too add dash '-' between Episode Name & Imdb id", "Exclude the dash '-'" };
-                            charAnswers = new char[2] { 'Y', 'N' };
-                            warnings = new string[] { };
-                            dashAfterImdb = GetUserConfirmation(question, charAnswers, warnings);
-
-                            Console.WriteLine();
-                            question = new string[2] { "Last chance to cancel", "Continue" };
-                            charAnswers = new char[2] { 'Y', 'N' };
-                            warnings = new string[] { "This is the last chance before all the file's will be rename'd !!!" };
-                            bool lastChance = GetUserConfirmation(question, charAnswers, warnings);
-
-                            if (!lastChance)
-                            {
-                                if (tvShowFolderName != $"{showMetadata.ShowTitle} ({showMetadata.ShowYear}) [imdbid-{showMetadata.ShowImdbId}]")
+                                if (AllowEpisodeName)
                                 {
-                                    Console.WriteLine($"\nWarning: The folder name '{tvShowFolderName}' does not match the expected format '{showMetadata.ShowTitle} ({showMetadata.ShowYear}) [imdbid-{showMetadata.ShowImdbId}]'.");
-                                    question = new string[2] { "Do you want to rename the folder name with the expected format & continue?", "Do you want to cancel?" };
-                                    charAnswers = new char[2] { '1', '2' };
+                                    Console.WriteLine();
+                                    question = new string[2] { "Would you like too add dash '-' between SxxExx & Episode Name", "Exclude the dash '-'" };
+                                    charAnswers = new char[2] { 'Y', 'N' };
                                     warnings = new string[] { };
+                                    dashAfterSeasonEpisode = GetUserConfirmation(question, charAnswers, warnings);
+                                }
 
-                                    bool userConfirmation = GetUserConfirmation(question, charAnswers, warnings);
-                                    if (userConfirmation)
+                                Console.WriteLine();
+                                question = new string[2] { "allow the usage of Imdb", "Disallow the usage of Imdb" };
+                                charAnswers = new char[2] { 'Y', 'N' };
+                                warnings = new string[] { "The 'id' from 'Imdb' is not automated due to anti-bot", "imdb id that exist in file name will be used" };
+                                AllowImdb = GetUserConfirmation(question, charAnswers, warnings);
+
+                                Console.WriteLine();
+                                question = new string[2] { "Would you like too add dash '-' between Episode Name & Imdb id", "Exclude the dash '-'" };
+                                charAnswers = new char[2] { 'Y', 'N' };
+                                warnings = new string[] { };
+                                dashAfterImdb = GetUserConfirmation(question, charAnswers, warnings);
+
+                                Console.WriteLine();
+                                question = new string[2] { "Last chance to cancel", "Continue" };
+                                charAnswers = new char[2] { 'Y', 'N' };
+                                warnings = new string[] { "This is the last chance before all the file's will be rename'd !!!" };
+                                bool lastChance = GetUserConfirmation(question, charAnswers, warnings);
+
+                                if (!lastChance)
+                                {
+                                    if (tvShowFolderName != $"{showMetadata.ShowTitle} ({showMetadata.ShowYear}) [imdbid-{showMetadata.ShowImdbId}]")
                                     {
-                                        string newParentDirectory = $"{GoToParentDirectory(showMetadata.FolderPath)}\\{showMetadata.ShowTitle} ({showMetadata.ShowYear}) [imdbid-{showMetadata.ShowImdbId}]";
-                                        RenameFileOrFolder(showMetadata.FolderPath, newParentDirectory);
-                                        showMetadata.FolderPath = newParentDirectory;
-                                        ChanceFilesName(showMetadata, EditFiles, UseEpisodeReleaseYear, AllowEpisodeName, AllowImdb, dashAfterReleaseYear, dashAfterSeasonEpisode, dashAfterImdb);
+                                        Console.WriteLine($"\nWarning: The folder name '{tvShowFolderName}' does not match the expected format '{showMetadata.ShowTitle} ({showMetadata.ShowYear}) [imdbid-{showMetadata.ShowImdbId}]'.");
+                                        question = new string[2] { "Do you want to rename the folder name with the expected format & continue?", "Do you want to cancel?" };
+                                        charAnswers = new char[2] { '1', '2' };
+                                        warnings = new string[] { };
+
+                                        bool userConfirmation = GetUserConfirmation(question, charAnswers, warnings);
+                                        if (userConfirmation)
+                                        {
+                                            string newParentDirectory = $"{GoToParentDirectory(showMetadata.FolderPath)}\\{showMetadata.ShowTitle} ({showMetadata.ShowYear}) [imdbid-{showMetadata.ShowImdbId}]";
+                                            RenameFileOrFolder(showMetadata.FolderPath, newParentDirectory);
+                                            showMetadata.FolderPath = newParentDirectory;
+                                            ChanceFilesName(showMetadata, EditFiles, UseEpisodeReleaseYear, AllowEpisodeName, AllowImdb, dashAfterReleaseYear, dashAfterSeasonEpisode, dashAfterImdb);
+                                        }
+                                        else
+                                        {
+                                            Console.WriteLine(operationCancelled);
+                                            Ending();
+                                            continue;
+                                        }
                                     }
                                     else
                                     {
-                                        Console.WriteLine("\n\nOperation cancelled by the user.");
+                                        ChanceFilesName(showMetadata, EditFiles, UseEpisodeReleaseYear, AllowEpisodeName, AllowImdb, dashAfterReleaseYear, dashAfterSeasonEpisode, dashAfterImdb);
                                     }
                                 }
                                 else
                                 {
-                                    ChanceFilesName(showMetadata, EditFiles, UseEpisodeReleaseYear, AllowEpisodeName, AllowImdb, dashAfterReleaseYear, dashAfterSeasonEpisode, dashAfterImdb);
+                                    Console.WriteLine(operationCancelled);
+                                    Ending();
+                                    continue;
                                 }
                             }
                             else
                             {
-                                Console.WriteLine("\n\nOperation cancelled by the user.");
+                                Console.WriteLine(operationCancelled);
+                                Ending();
+                                continue;
                             }
                         }
                         else
                         {
-                            Console.WriteLine("\n\nOperation cancelled by the user.");
+                            Console.WriteLine(operationCancelled);
+                            Ending();
+                            continue;
                         }
                     }
                 }
@@ -189,11 +278,66 @@ namespace Jelly_Software.Tools
                     Console.WriteLine("Please try again or type 'Help' for more information.");
                 }
 
+                Ending();
+                continue;
+            }
+
+            void Ending()
+            {
                 // Clear the console for the next iteration
                 Console.Write("\n\n\nPress any key to continue");
                 Console.ReadKey();
                 Console.Clear();
             }
+        }
+
+        private class SearchResult
+        {
+            public string Title { get; set; }
+            public int Year { get; set; }
+            public string ImdbId { get; set; }
+        }
+        private static async Task<List<SearchResult>> SearchTvMazeAsync(string showName)
+        {
+            var results = new List<SearchResult>();
+            string url = $"https://api.tvmaze.com/search/shows?q={Uri.EscapeDataString(showName)}";
+
+            // Utilizing your existing rate limit logic
+            HttpResponseMessage response = await GetWithRateLimitRetryAsync(url);
+            if (!response.IsSuccessStatusCode) return results;
+
+            string json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+
+            foreach (var item in doc.RootElement.EnumerateArray())
+            {
+                if (item.TryGetProperty("show", out var showNode))
+                {
+                    var result = new SearchResult
+                    {
+                        Title = showNode.TryGetProperty("name", out var n) ? (n.GetString() ?? "Unknown") : "Unknown"
+                    };
+
+                    if (showNode.TryGetProperty("premiered", out var p) && p.ValueKind == JsonValueKind.String)
+                    {
+                        if (DateTime.TryParse(p.GetString(), out DateTime date))
+                            result.Year = date.Year;
+                    }
+
+                    if (showNode.TryGetProperty("externals", out var ext) &&
+                        ext.TryGetProperty("imdb", out var imdbNode) &&
+                        imdbNode.ValueKind == JsonValueKind.String)
+                    {
+                        result.ImdbId = imdbNode.GetString() ?? string.Empty;
+                    }
+
+                    if (!string.IsNullOrEmpty(result.ImdbId))
+                        results.Add(result);
+                }
+            }
+
+            // Order the list by release year as requested
+            return results.OrderBy(r => r.Year).ToList();
         }
 
         private static void ChanceFilesName(ShowMediaMetadata showMetadata, bool EditFiles, bool UseEpisodeReleaseYear, bool AllowEpisodeName, bool AllowImdb, bool dashAfterReleaseYear, bool dashAfterSeasonEpisode, bool dashAfterImdb)
