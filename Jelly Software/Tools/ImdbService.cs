@@ -22,7 +22,7 @@ namespace Jelly_Software.Tools
             {
                 try
                 {
-                    Console.WriteLine("Version 1.0.3");
+                    Console.WriteLine("Version 1.0.3.1");
                     Console.Write("Insert 'Help' for more infomation!\nInsert Tv Show Folder Path\n> ");
                     string folderPath = Console.ReadLine() ?? throw new NullReferenceException();
                     if (folderPath.ToLower() == "Help".ToLower())
@@ -111,7 +111,7 @@ namespace Jelly_Software.Tools
                             Console.WriteLine();
                             question = new string[2] { "allow the usage of Imdb", "Disallow the usage of Imdb" };
                             charAnswers = new char[2] { 'Y', 'N' };
-                            warnings = new string[] { "The 'id' from 'Imdb' is not automated due to anti-bot" };
+                            warnings = new string[] { "The 'id' from 'Imdb' is not automated due to anti-bot", "imdb id that exist in file name will be used" };
                             AllowImdb = GetUserConfirmation(question, charAnswers, warnings);
 
                             Console.WriteLine();
@@ -672,6 +672,7 @@ namespace Jelly_Software.Tools
             Console.WriteLine("\n6) In case of console is frozen try & press enter");
             Console.WriteLine("\n7) Be aware if a season folder has episode's with the number it'll pause until question answered by a user");
             Console.WriteLine("\n8) This software has not been test'd on Season 0");
+            Console.WriteLine("\n9) If any imdb id Example 'tt0959621' exist in file name - '[imdbid-]' will be added for the file name with the found id");
         }
 
         public class ShowMediaMetadata
