@@ -16,15 +16,19 @@ namespace Jelly_Software.Tools
     {
         private static readonly HttpClient _httpClient = new();
 
+        // Tracks if a 429 was hit during the current fetch to manage the 3-line gap
+        private static bool _rateLimitHit = false;
+
         public static async Task TVShowMain()
         {
             while (true)
             {
                 try
                 {
-                    Console.WriteLine("Version 1.0.3.1");
+                    Console.WriteLine("Version 1.0.3.5");
                     Console.Write("Insert 'Help' for more infomation!\nInsert Tv Show Folder Path\n> ");
                     string folderPath = Console.ReadLine() ?? throw new NullReferenceException();
+
                     if (folderPath.ToLower() == "Help".ToLower())
                     {
                         Help();
@@ -37,16 +41,29 @@ namespace Jelly_Software.Tools
                     else
                     {
                         string tvShowFolderName = folderPath.Split("\\").Last();
-
                         string tvShowName = GetTvShowFolderTvShowName(tvShowFolderName);
                         string releaseYear = GetTvShowFolderReleaseYear(tvShowFolderName);
                         string imdbId = GetTvShowFolderImdbId(tvShowFolderName);
 
                         Console.WriteLine($"\nFetching metadata for IMDb ID: {imdbId} and folder: {tvShowFolderName}...\n");
+
+                        // Reset the flag for each new show search
+                        _rateLimitHit = false;
+
                         ShowMediaMetadata showMetadata = await ImdbService.GetShowAsync(imdbId, tvShowFolderName);
                         showMetadata.FolderPath = folderPath;
 
-                        Console.WriteLine($"\nShow Title: {showMetadata.ShowTitle}");
+                        // Spacing logic: If we hit a rate limit, leave exactly 3 blank lines.
+                        if (_rateLimitHit)
+                        {
+                            Console.Write("\n\n\n\n");
+                            Console.WriteLine($"Show Title: {showMetadata.ShowTitle}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"\nShow Title: {showMetadata.ShowTitle}");
+                        }
+
                         Console.WriteLine($"Show Year: {showMetadata.ShowYear}");
                         Console.WriteLine($"IMDb ID: {showMetadata.ShowImdbId}");
                         Console.WriteLine($"Folder Path: {showMetadata.FolderName}");
@@ -62,12 +79,13 @@ namespace Jelly_Software.Tools
                         }
 
                         Console.WriteLine("\nMetadata fetched successfully!");
-
                         // EditFiles
                         Console.WriteLine();
+
                         string[] question = new string[2] { "Would you like to rename the tv show files", "Would you like to cancel?" };
                         char[] charAnswers = new char[2] { 'Y', 'N' };
                         string[] warnings = new string[] { };
+
                         bool EditFiles = GetUserConfirmation(question, charAnswers, warnings);
                         bool UseEpisodeReleaseYear = false;
                         bool dashAfterReleaseYear = false;
@@ -75,6 +93,7 @@ namespace Jelly_Software.Tools
                         bool dashAfterSeasonEpisode = false;
                         bool AllowImdb = false;
                         bool dashAfterImdb = false;
+
                         if (EditFiles)
                         {
                             // UseEpisodeReleaseYear
@@ -134,6 +153,7 @@ namespace Jelly_Software.Tools
                                     question = new string[2] { "Do you want to rename the folder name with the expected format & continue?", "Do you want to cancel?" };
                                     charAnswers = new char[2] { '1', '2' };
                                     warnings = new string[] { };
+
                                     bool userConfirmation = GetUserConfirmation(question, charAnswers, warnings);
                                     if (userConfirmation)
                                     {
@@ -168,6 +188,7 @@ namespace Jelly_Software.Tools
                     Console.WriteLine($"\n\nError: {ex.Message}");
                     Console.WriteLine("Please try again or type 'Help' for more information.");
                 }
+
                 // Clear the console for the next iteration
                 Console.Write("\n\n\nPress any key to continue");
                 Console.ReadKey();
@@ -179,14 +200,12 @@ namespace Jelly_Software.Tools
         {
             List<FileInfo> files = new List<FileInfo>();
             List<DirectoryInfo> directories = new List<DirectoryInfo>();
-
             List<string> errorMassages = new List<string>();
 
             Console.WriteLine();
             Console.WriteLine("Renaming files and folders...");
 
             directories.AddRange(new DirectoryInfo(showMetadata.FolderPath).GetDirectories());
-
             List<(string FolderName, int SeasonNum)> seasonFoldersList = new List<(string, int)>();
             int seasonChancedCount = 0;
             int seasonSkippedCount = 0;
@@ -194,16 +213,13 @@ namespace Jelly_Software.Tools
             for (int i = 0; i < directories.Count;)
             {
                 string folderName = directories[i].Name;
-
                 if (folderName.Equals("Unused Episodes", StringComparison.OrdinalIgnoreCase))
                 {
                     directories.RemoveAt(i);
                     continue;
                 }
 
-                // Flexible Regex to find variations like: "Season 1", "Season.1", "S01", "Series 1", etc.
                 Match seasonMatch = Regex.Match(folderName, @"(?i)(?:season|series|s)\s*(\d+)");
-
                 if (seasonMatch.Success)
                 {
                     int parsedSeasonNum = int.Parse(seasonMatch.Groups[1].Value);
@@ -239,7 +255,6 @@ namespace Jelly_Software.Tools
             }
 
             Console.WriteLine($"\nTotal Folders: {seasonFoldersList.Count + seasonSkippedCount}\nTotal seasons: {seasonFoldersList.Count}\nchanged: {seasonChancedCount}\nSkipped: {seasonSkippedCount}");
-
             int episodeSkippedCount = 0;
             string unusedFolderPath = $"{showMetadata.FolderPath}\\Unused Episodes";
 
@@ -251,8 +266,6 @@ namespace Jelly_Software.Tools
                 int metaSeasonIndex = currentSeasonNum - 1;
 
                 seasonFiles.AddRange(new DirectoryInfo($"{showMetadata.FolderPath}\\{currentFolderName}").GetFiles());
-
-                // Updated dictionary to also track the ExtractedImdbId
                 var episodeGroups = new Dictionary<string, List<(FileInfo OriginalFile, string Extension, int EpNum, string ExtractedImdbId)>>();
 
                 for (int j = 0; j < seasonFiles.Count; j++)
@@ -266,17 +279,12 @@ namespace Jelly_Software.Tools
                         continue;
                     }
 
-                    // Strip the file extension so we don't accidentally parse numbers inside ".mp4" etc.
                     string nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
 
-                    // 1. Try explicit Season AND Episode formats (e.g., S02E05, 2x05, 02.05, 2x05-06)
                     Match fullMatch = Regex.Match(nameWithoutExt, @"(?i)(?:s|season\s*)?(\d+)(?:[ .\-x]+|(?:e|episode\s*|x))(\d+)(?:[ .\-x]+(?:e|episode\s*|x)?(\d+))?");
-
-                    // 2. Try standalone Episode formats with unlimited digits (e.g., 05, 104, 05-06)
                     Match epOnlyMatch = Regex.Match(nameWithoutExt, @"(?i)(?:^|[ \-])(?:e|episode\s*)?(\d+)(?:[ .\-x]+(?:e|episode\s*)?(\d+))?\b");
-
-                    // Extract existing IMDb ID from the original file name if it exists
                     Match imdbMatch = Regex.Match(fileName, @"(?i)(tt\d{7,10})");
+
                     string extractedImdbId = imdbMatch.Success ? imdbMatch.Groups[1].Value.ToLower() : string.Empty;
 
                     bool isMatched = false;
@@ -285,7 +293,6 @@ namespace Jelly_Software.Tools
 
                     if (fullMatch.Success)
                     {
-                        // We found both Season and Episode in the file name
                         seasonNum = int.Parse(fullMatch.Groups[1].Value);
                         episode1Num = int.Parse(fullMatch.Groups[2].Value);
                         if (fullMatch.Groups[3].Success)
@@ -297,7 +304,6 @@ namespace Jelly_Software.Tools
                     }
                     else if (epOnlyMatch.Success)
                     {
-                        // We ONLY found an episode number, so we grab the season from the folder loop!
                         seasonNum = currentSeasonNum;
                         episode1Num = int.Parse(epOnlyMatch.Groups[1].Value);
                         if (epOnlyMatch.Groups[2].Success)
@@ -311,7 +317,6 @@ namespace Jelly_Software.Tools
                     if (isMatched)
                     {
                         string formattedEpisodeString = $"S{seasonNum:D2}E{episode1Num:D2}";
-
                         if (hasMultiPart)
                             formattedEpisodeString += $"-E{episode2Num:D2}";
 
@@ -331,9 +336,9 @@ namespace Jelly_Software.Tools
                     string epString = group.Key;
                     var filesInGroup = group.Value;
                     int epNum = filesInGroup[0].EpNum;
-                    string extractedImdbId = filesInGroup[0].ExtractedImdbId; // Grab the extracted ID
-                    int epIndex = epNum - 1;
+                    string extractedImdbId = filesInGroup[0].ExtractedImdbId;
 
+                    int epIndex = epNum - 1;
                     if (epIndex < 0 || epIndex >= showMetadata.Seasons[metaSeasonIndex].Episodes.Count)
                     {
                         errorMassages.Add($"[ERROR] Skipping '{epString}': Metadata only has {showMetadata.Seasons[metaSeasonIndex].Episodes.Count} episodes for Season {currentSeasonNum}.");
@@ -343,6 +348,7 @@ namespace Jelly_Software.Tools
                     }
 
                     string baseNewName = showMetadata.ShowTitle;
+
                     if (UseEpisodeReleaseYear)
                     {
                         if (dashAfterReleaseYear)
@@ -364,13 +370,13 @@ namespace Jelly_Software.Tools
                     {
                         if (dashAfterSeasonEpisode)
                             baseNewName += " -";
+
                         string rawTitle = showMetadata.Seasons[metaSeasonIndex].Episodes[epIndex].EpisodeTitle;
                         string cleanTitle = Regex.Replace(rawTitle, @"[<>:""/\\|?*]", string.Empty);
                         cleanTitle = Regex.Replace(cleanTitle, @"\s{2,}", " ");
                         baseNewName += $" {cleanTitle}";
                     }
 
-                    // Handles IMDb ID injection logic
                     if (AllowImdb)
                     {
                         string apiImdbId = showMetadata.Seasons[metaSeasonIndex].Episodes[epIndex].EpisodeImdbId;
@@ -393,7 +399,6 @@ namespace Jelly_Software.Tools
                     }
                     else if (!string.IsNullOrEmpty(extractedImdbId))
                     {
-                        // Forces IMDb ID into the name if the original file had it, even if AllowImdb is false
                         if (dashAfterImdb)
                             baseNewName += $" - [imdbid-{extractedImdbId}]";
                         else
@@ -468,8 +473,8 @@ namespace Jelly_Software.Tools
                         else
                         {
                             if (!Directory.Exists(unusedFolderPath)) Directory.CreateDirectory(unusedFolderPath);
-
                             int selectedIdx = int.Parse(choice) - 1;
+
                             for (int k = 0; k < filesInGroup.Count; k++)
                             {
                                 var fileData = filesInGroup[k];
@@ -506,12 +511,11 @@ namespace Jelly_Software.Tools
             var show = new ShowMediaMetadata
             {
                 ShowImdbId = imdbId,
-                //FolderName = folderPath
             };
 
-            // Step 1: Look up show to get TVMaze numeric ID
             string lookupUrl = $"https://api.tvmaze.com/lookup/shows?imdb={imdbId}";
-            HttpResponseMessage showResponse = await _httpClient.GetAsync(lookupUrl);
+            HttpResponseMessage showResponse = await GetWithRateLimitRetryAsync(lookupUrl);
+
             if (!showResponse.IsSuccessStatusCode)
             {
                 if (showResponse.StatusCode == HttpStatusCode.NotFound)
@@ -540,9 +544,8 @@ namespace Jelly_Software.Tools
 
             int showId = idProp.GetInt32();
 
-            // Step 2: Fetch all episodes for the show
             string episodesUrl = $"https://api.tvmaze.com/shows/{showId}/episodes";
-            HttpResponseMessage episodesResponse = await _httpClient.GetAsync(episodesUrl);
+            HttpResponseMessage episodesResponse = await GetWithRateLimitRetryAsync(episodesUrl);
 
             if (!episodesResponse.IsSuccessStatusCode)
             {
@@ -574,7 +577,6 @@ namespace Jelly_Software.Tools
                     epYear = airdate.Year;
                 }
 
-                // Step 3: Fetch specific episode details to retrieve its IMDb ID
                 string epImdbId = await GetEpisodeImdbIdAsync(tvmazeEpId);
 
                 if (!seasonMap.TryGetValue(seasonNum, out var seasonMeta))
@@ -599,13 +601,12 @@ namespace Jelly_Software.Tools
             return show;
         }
 
-        // Helper method to look up external IDs for an individual episode
         private static async Task<string> GetEpisodeImdbIdAsync(int episodeId)
         {
             try
             {
                 string epDetailUrl = $"https://api.tvmaze.com/episodes/{episodeId}";
-                HttpResponseMessage response = await _httpClient.GetAsync(epDetailUrl);
+                HttpResponseMessage response = await GetWithRateLimitRetryAsync(epDetailUrl);
                 if (!response.IsSuccessStatusCode) return string.Empty;
 
                 string json = await response.Content.ReadAsStringAsync();
@@ -626,6 +627,55 @@ namespace Jelly_Software.Tools
             return string.Empty;
         }
 
+        // --- UPDATED: 1MS COUNTDOWN STEP WITH DAYS, HOURS, MINUTES, SECONDS, & MS ---
+        private static async Task<HttpResponseMessage> GetWithRateLimitRetryAsync(string url)
+        {
+            while (true)
+            {
+                HttpResponseMessage response = await _httpClient.GetAsync(url);
+
+                if (response.StatusCode == (HttpStatusCode)429) // Too Many Requests
+                {
+                    _rateLimitHit = true;
+
+                    int delayMs = 35000; // Default TVmaze fallback
+                    if (response.Headers.RetryAfter != null && response.Headers.RetryAfter.Delta.HasValue)
+                    {
+                        delayMs = (int)response.Headers.RetryAfter.Delta.Value.TotalMilliseconds;
+                    }
+
+                    // Set the exact target time when the retry should happen
+                    DateTime targetTime = DateTime.UtcNow.AddMilliseconds(delayMs);
+
+                    while (true)
+                    {
+                        TimeSpan remaining = targetTime - DateTime.UtcNow;
+
+                        if (remaining.TotalMilliseconds <= 0)
+                            break;
+
+                        string formattedTime = "";
+                        if (remaining.Days > 0) formattedTime += $"{remaining.Days}d ";
+                        if (remaining.Days > 0 || remaining.Hours > 0) formattedTime += $"{remaining.Hours}h ";
+                        if (remaining.Days > 0 || remaining.Hours > 0 || remaining.Minutes > 0) formattedTime += $"{remaining.Minutes}m ";
+                        if (remaining.Days > 0 || remaining.Hours > 0 || remaining.Minutes > 0 || remaining.Seconds > 0) formattedTime += $"{remaining.Seconds}s ";
+                        formattedTime += $"{remaining.Milliseconds}ms";
+
+                        Console.Write($"\rRate limit reached (429). Retrying in: {formattedTime}".PadRight(95));
+
+                        // Sleep for a smooth UI update interval (15ms matches Windows timer ticks nicely)
+                        await Task.Delay(15);
+                    }
+
+                    Console.Write($"\rRate limit reached (429). Retrying in: 0ms".PadRight(95));
+
+                    continue;
+                }
+
+                return response;
+            }
+        }
+
         private static string GetTvShowFolderTvShowName(string getTvShowName)
         {
             string[] parts = getTvShowName.Split(" ");
@@ -642,6 +692,7 @@ namespace Jelly_Software.Tools
                 throw new Exception("TV Show Name not found in the folder name.");
             return tvShowName;
         }
+
         private static string GetTvShowFolderReleaseYear(string getReleaseYear)
         {
             string releaseYear = getReleaseYear.Split("(").Last().Split(")").First();
@@ -651,6 +702,7 @@ namespace Jelly_Software.Tools
                 throw new Exception("Release Year is not a valid integer.");
             return releaseYear;
         }
+
         private static string GetTvShowFolderImdbId(string getImdbId)
         {
             string imdbId = getImdbId.Split(" ").Last().Split("-").Last().Split("]").First();
@@ -658,6 +710,7 @@ namespace Jelly_Software.Tools
                 throw new Exception("IMDb ID not found in the folder name.");
             return imdbId;
         }
+
         private static void Help()
         {
             Console.WriteLine("\nHelp Information:");

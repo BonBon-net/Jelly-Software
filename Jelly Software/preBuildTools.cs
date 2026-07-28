@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -13,6 +14,7 @@ namespace Jelly_Software
             string path = oldPath;
             string newName = newPath;
             string newpath = Path.Combine(Path.GetDirectoryName(path) ?? string.Empty, newName);
+
             if (File.Exists(path))
             {
                 File.Move(path, newpath);
@@ -29,7 +31,7 @@ namespace Jelly_Software
 
         public static string GoToParentDirectory(string path)
         {
-            List<string> pathParts = path.Split("\\").ToList();
+            List<string> pathParts = path.Split('\\').ToList();
             pathParts = GetParentDirectory(pathParts);
             return pathParts.First();
 
@@ -49,23 +51,14 @@ namespace Jelly_Software
         {
             for (int i = 0; i < lineCount; i++)
             {
-                // Move cursor up one line
                 Console.SetCursorPosition(0, Console.CursorTop - 1);
-                // Clear the line by writing spaces across the entire window width
                 Console.Write(new string(' ', Console.WindowWidth));
             }
-            // Return cursor back to the starting line of the cleared block
             Console.SetCursorPosition(0, Console.CursorTop);
         }
 
         public static bool GetUserConfirmation(string[] question, char[] charAnswers, string[] warnings)
         {
-            // string[] question = new string[2] { "", "" };
-            // char[] charAnswers = new char[2] { 'Y', 'N' };
-            // string[] warnings = new string[] { };
-            // bool userConfirmation = GetUserConfirmation(question, charAnswers);
-
-            // Validate input parameters
             if (question.Length != 2)
                 throw new ArgumentException("Question array must contain exactly two elements: the question and the prompt.");
             if (charAnswers.Length != 2)
@@ -89,25 +82,25 @@ namespace Jelly_Software
                 if (warnings.Length > 0)
                 {
                     for (int i = 0; i < warnings.Length; i++)
+                    {
                         if (warnings.Length > 1)
                             Console.WriteLine($"WARNING ({i + 1}): {warnings[i]}");
                         else
                             Console.WriteLine($"WARNING: {warnings[i]}");
+                    }
                 }
+
                 Console.WriteLine($"[{charAnswers.First()}] {question.First()}");
                 Console.WriteLine($"[{charAnswers.Last()}] {question.Last()}");
                 Console.Write("> ");
 
                 string input = "";
 
-                // --- CUSTOM INPUT READER ---
                 while (true)
                 {
                     ConsoleKeyInfo key = Console.ReadKey(true);
-
                     if (key.Key == ConsoleKey.Enter)
                     {
-                        // Only allow Enter if they actually typed Y or N
                         if (input.Length > 0)
                         {
                             Console.WriteLine();
@@ -122,8 +115,6 @@ namespace Jelly_Software
                     else if (input.Length == 0)
                     {
                         char pressedChar = char.ToUpper(key.KeyChar);
-
-                        // STRICT FILTER: Only draw the letter if it is exactly 'Y' or 'N'
                         if (pressedChar == charAnswers.First().ToString().ToUpper().ToCharArray().First() ||
                             pressedChar == charAnswers.Last().ToString().ToUpper().ToCharArray().First())
                         {
@@ -132,22 +123,18 @@ namespace Jelly_Software
                         }
                     }
                 }
-                // ---------------------------
 
-                // Assign the boolean based on their confirmed choice
-                if (input.ToUpper() == charAnswers.First().ToString().ToUpper())
+                if (input.Equals(charAnswers.First().ToString(), StringComparison.OrdinalIgnoreCase))
                 {
                     userInput = true;
                     break;
                 }
-                else if (input.ToUpper() == charAnswers.Last().ToString().ToUpper())
+                else if (input.Equals(charAnswers.Last().ToString(), StringComparison.OrdinalIgnoreCase))
                 {
                     userInput = false;
                     break;
                 }
 
-                // Clear 3 lines if something somehow goes wrong, though 
-                // with this strict filter, the outer loop will almost never repeat!
                 ClearConsoleLines(question.Length + warnings.Length);
             }
             return userInput;
