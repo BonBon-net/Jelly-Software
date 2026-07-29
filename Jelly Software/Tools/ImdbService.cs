@@ -27,7 +27,7 @@ namespace Jelly_Software.Tools
             {
                 try
                 {
-                    Console.WriteLine("Version 1.0.4");
+                    Console.WriteLine("Version 1.0.4.1");
                     Console.Write("Insert 'Help' for more infomation!\nInsert Tv Show Folder Path\n> ");
                     string folderPath = Console.ReadLine() ?? throw new NullReferenceException();
 
@@ -42,6 +42,33 @@ namespace Jelly_Software.Tools
                     }
                     else
                     {
+                        if (!Directory.Exists(folderPath))
+                        {
+                            Console.WriteLine($"Error: The folder path does not exist.\nPlease check the path and try again.");
+                            Ending();
+                            continue;
+                        }
+                        if (!Directory.GetDirectories(folderPath).Any(d => Regex.IsMatch(d.Split("\\").Last(), @"(?i)(?:season|series|s)\s*\d+")))
+                        {
+                            Console.WriteLine($"[ERROR] No valid season folders found.\nExpected folder format: 'Season 01', 'Series 1', or 'S01'.");
+                            Ending();
+                            continue;
+                        }
+                        // 3rd Check: Checks if any season folder contains at least one valid video file
+                        if (!Directory.GetDirectories(folderPath)
+                            .Where(d => Regex.IsMatch(d.Split("\\").Last(), @"(?i)(?:season|series|s)\s*\d+"))
+                            .SelectMany(d => Directory.GetFiles(d))
+                            .Any(f =>
+                            {
+                                string ext = f.Split('.').Last().ToLower();
+                                return ext == "mkv" || ext == "mp4" || ext == "avi";
+                            }))
+                        {
+                            Console.WriteLine($"[ERROR] No valid episode files (.mkv, .mp4, .avi) found inside the season folders.");
+                            Ending();
+                            continue;
+                        }
+
                         string tvShowFolderName = folderPath.Split("\\").Last();
                         string tvShowName = GetTvShowFolderTvShowName(tvShowFolderName);
                         string releaseYear = GetTvShowFolderReleaseYear(tvShowFolderName);
@@ -342,7 +369,7 @@ namespace Jelly_Software.Tools
                                 dashAfterImdb = GetUserConfirmation(question, charAnswers, warnings);
 
                                 Console.WriteLine();
-                                question = new string[2] { "Last chance to cancel", "Continue" };
+                                question = new string[2] { "Cancel renaming", "Continue renaming" };
                                 charAnswers = new char[2] { 'Y', 'N' };
                                 warnings = new string[] { "This is the last chance before all the file's will be rename'd !!!" };
                                 bool lastChance = GetUserConfirmation(question, charAnswers, warnings);
@@ -491,7 +518,6 @@ namespace Jelly_Software.Tools
             List<(string FolderName, int SeasonNum)> seasonFoldersList = new List<(string, int)>();
             int seasonChancedCount = 0;
             int seasonSkippedCount = 0;
-
             for (int i = 0; i < directories.Count;)
             {
                 string folderName = directories[i].Name;
@@ -549,7 +575,6 @@ namespace Jelly_Software.Tools
 
                 seasonFiles.AddRange(new DirectoryInfo($"{showMetadata.FolderPath}\\{currentFolderName}").GetFiles());
                 var episodeGroups = new Dictionary<string, List<(FileInfo OriginalFile, string Extension, int EpNum, string ExtractedImdbId)>>();
-
                 for (int j = 0; j < seasonFiles.Count; j++)
                 {
                     string fileName = seasonFiles[j].Name;
@@ -563,8 +588,9 @@ namespace Jelly_Software.Tools
 
                     string nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
 
-                    Match fullMatch = Regex.Match(nameWithoutExt, @"(?i)(?:s|season\s*)?(\d+)(?:[ .\-x]+|(?:e|episode\s*|x))(\d+)(?:[ .\-x]+(?:e|episode\s*|x)?(\d+))?");
-                    Match epOnlyMatch = Regex.Match(nameWithoutExt, @"(?i)(?:^|[ \-])(?:e|episode\s*)?(\d+)(?:[ .\-x]+(?:e|episode\s*)?(\d+))?\b");
+                    // --- UPDATED REGEX FIX ---
+                    Match fullMatch = Regex.Match(nameWithoutExt, @"(?i)(?:s|season\s*)?(\d+)(?:[ .\-x]+|(?:e|episode\s*|x))(\d+)(?:(?:(?:-|x|e|episode\s*)(?:e|episode\s*)?|[ .]+(?:e|episode\s*|x))(\d+))?");
+                    Match epOnlyMatch = Regex.Match(nameWithoutExt, @"(?i)(?:^|[ \-])(?:e|episode\s*)?(\d+)(?:(?:(?:-|x|e|episode\s*)(?:e|episode\s*)?|[ .]+(?:e|episode\s*|x))(\d+))?\b");
                     Match imdbMatch = Regex.Match(fileName, @"(?i)(tt\d{7,10})");
 
                     string extractedImdbId = imdbMatch.Success ? imdbMatch.Groups[1].Value.ToLower() : string.Empty;
@@ -572,7 +598,6 @@ namespace Jelly_Software.Tools
                     bool isMatched = false;
                     int seasonNum = 0, episode1Num = 0, episode2Num = 0;
                     bool hasMultiPart = false;
-
                     if (fullMatch.Success)
                     {
                         seasonNum = int.Parse(fullMatch.Groups[1].Value);
@@ -601,10 +626,8 @@ namespace Jelly_Software.Tools
                         string formattedEpisodeString = $"S{seasonNum:D2}E{episode1Num:D2}";
                         if (hasMultiPart)
                             formattedEpisodeString += $"-E{episode2Num:D2}";
-
                         if (!episodeGroups.ContainsKey(formattedEpisodeString))
                             episodeGroups[formattedEpisodeString] = new List<(FileInfo, string, int, string)>();
-
                         episodeGroups[formattedEpisodeString].Add((seasonFiles[j], fileExtension, episode1Num, extractedImdbId));
                     }
                     else
@@ -630,7 +653,6 @@ namespace Jelly_Software.Tools
                     }
 
                     string baseNewName = showMetadata.ShowTitle;
-
                     if (UseEpisodeReleaseYear)
                     {
                         if (dashAfterReleaseYear)
@@ -647,12 +669,10 @@ namespace Jelly_Software.Tools
                     }
 
                     baseNewName += $" {epString}";
-
                     if (AllowEpisodeName)
                     {
                         if (dashAfterSeasonEpisode)
                             baseNewName += " -";
-
                         string rawTitle = showMetadata.Seasons[metaSeasonIndex].Episodes[epIndex].EpisodeTitle;
                         string cleanTitle = Regex.Replace(rawTitle, @"[<>:""/\\|?*]", string.Empty);
                         cleanTitle = Regex.Replace(cleanTitle, @"\s{2,}", " ");
@@ -703,13 +723,11 @@ namespace Jelly_Software.Tools
                         Console.WriteLine($"\n[ATTENTION] Multiple files detected for {epString}:");
                         for (int k = 0; k < filesInGroup.Count; k++)
                             Console.WriteLine($"  [{k + 1}] {filesInGroup[k].OriginalFile.Name}");
-
                         Console.WriteLine($"  [A] Keep ALL (Rename as Part 1, Part 2...)");
                         Console.WriteLine($"  [S] Skip ALL (Moves everything to Unused folder)\n");
 
                         string choice;
                         bool isFirstAttempt = true;
-
                         while (true)
                         {
                             if (!isFirstAttempt)
@@ -722,10 +740,8 @@ namespace Jelly_Software.Tools
 
                             if (choice == "A" || choice == "S")
                                 break;
-
                             if (int.TryParse(choice, out int selectedNum) && selectedNum >= 1 && selectedNum <= filesInGroup.Count)
                                 break;
-
                             Console.WriteLine("Invalid input. Please enter a valid number from the list - '1', '2', 'A', or 'S'.");
                             isFirstAttempt = false;
                         }
