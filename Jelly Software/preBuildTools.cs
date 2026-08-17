@@ -3,30 +3,60 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Jelly_Software
 {
     public static class preBuildTools
     {
+        // Helper method to print text in Green
+        public static void WriteLineGreen(string text = "")
+        {
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine(text);
+            Console.ResetColor();
+        }
+
         public static void RenameFileOrFolder(string oldPath, string newPath)
         {
             string path = oldPath;
             string newName = newPath;
             string newpath = Path.Combine(Path.GetDirectoryName(path) ?? string.Empty, newName);
 
+            newName = $"{GoToParentDirectory(newpath)}\\{SanitizeFilename(newpath.Split("\\").Last())}";
+
             if (File.Exists(path))
             {
-                File.Move(path, newpath);
+                File.Move(path, newName);
             }
             else if (Directory.Exists(path))
             {
-                Directory.Move(path, newpath);
+                Directory.Move(path, newName);
             }
             else
             {
-                Console.WriteLine($"Path does not exist: {path}");
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"[ERROR] Path does not exist: {path}");
+                Console.ResetColor();
             }
+        }
+
+        public static string SanitizeFilename(string filename)
+        {
+            if (string.IsNullOrWhiteSpace(filename))
+            {
+                return string.Empty;
+            }
+
+            // Matches < > : " / \ | ? * and control characters (0-31)
+            string illegalChars = @"[<>:""/\\|?\*\x00-\x1F]";
+
+            // Remove the illegal characters
+            string cleanString = Regex.Replace(filename, illegalChars, string.Empty);
+
+            // Remove trailing spaces and periods (Windows restriction)
+            return cleanString.TrimEnd(' ', '.');
         }
 
         public static string GoToParentDirectory(string path)
@@ -81,6 +111,7 @@ namespace Jelly_Software
             {
                 if (warnings.Length > 0)
                 {
+                    Console.ForegroundColor = ConsoleColor.Yellow;
                     for (int i = 0; i < warnings.Length; i++)
                     {
                         if (warnings.Length > 1)
@@ -88,11 +119,15 @@ namespace Jelly_Software
                         else
                             Console.WriteLine($"WARNING: {warnings[i]}");
                     }
+                    Console.ResetColor();
                 }
 
-                Console.WriteLine($"[{charAnswers.First()}] {question.First()}");
-                Console.WriteLine($"[{charAnswers.Last()}] {question.Last()}");
+                WriteLineGreen($"[{charAnswers.First()}] {question.First()}");
+                WriteLineGreen($"[{charAnswers.Last()}] {question.Last()}");
+
+                Console.ForegroundColor = ConsoleColor.Green;
                 Console.Write("> ");
+                Console.ResetColor();
 
                 string input = "";
 
