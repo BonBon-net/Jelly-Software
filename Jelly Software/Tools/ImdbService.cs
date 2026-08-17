@@ -27,7 +27,7 @@ namespace Jelly_Software.Tools
             {
                 try
                 {
-                    WriteLineGreen("Version 1.0.5 (Testing)");
+                    WriteLineGreen("Version 1.0.5");
                     WriteLineGreen("Type 'Help' for more information.\nInsert TV Show Folder Path:");
 
                     Console.ForegroundColor = ConsoleColor.Green;
