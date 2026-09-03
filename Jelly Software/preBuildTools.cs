@@ -1,8 +1,10 @@
-﻿using System;
+﻿using Jelly_Software.AppSettings;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -10,12 +12,44 @@ namespace Jelly_Software
 {
     public static class preBuildTools
     {
+        /// <summary>
+        /// Helper to print colored console lines respecting user 'AllowColors' setting.
+        /// </summary>
+        public static void WriteLineColored(string text, ConsoleColor color)
+        {
+            if (ProgramSettings.AllowColors)
+            {
+                Console.ForegroundColor = color;
+                Console.WriteLine(text);
+                Console.ResetColor();
+            }
+            else
+            {
+                Console.WriteLine(text);
+            }
+        }
+
+        /// <summary>
+        /// Helper to print colored console inline text respecting user 'AllowColors' setting.
+        /// </summary>
+        public static void WriteColored(string text, ConsoleColor color)
+        {
+            if (ProgramSettings.AllowColors)
+            {
+                Console.ForegroundColor = color;
+                Console.Write(text);
+                Console.ResetColor();
+            }
+            else
+            {
+                Console.Write(text);
+            }
+        }
+
         // Helper method to print text in Green
         public static void WriteLineGreen(string text = "")
         {
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine(text);
-            Console.ResetColor();
+            WriteLineColored(text, ConsoleColor.Green);
         }
 
         public static void RenameFileOrFolder(string oldPath, string newPath)
@@ -36,9 +70,10 @@ namespace Jelly_Software
             }
             else
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"[ERROR] Path does not exist: {path}");
-                Console.ResetColor();
+                // Dev Note: Check dev configuration before issuing sound alert
+                if (ProgramSettings.AllowBeep)
+                    Console.Beep();
+                WriteLineColored($"[ERROR] Path does not exist: {path}", ConsoleColor.Red);
             }
         }
 
@@ -111,23 +146,19 @@ namespace Jelly_Software
             {
                 if (warnings.Length > 0)
                 {
-                    Console.ForegroundColor = ConsoleColor.Yellow;
                     for (int i = 0; i < warnings.Length; i++)
                     {
-                        if (warnings.Length > 1)
-                            Console.WriteLine($"WARNING ({i + 1}): {warnings[i]}");
-                        else
-                            Console.WriteLine($"WARNING: {warnings[i]}");
+                        string warnMsg = warnings.Length > 1
+                            ? $"WARNING ({i + 1}): {warnings[i]}"
+                            : $"WARNING: {warnings[i]}";
+                        WriteLineColored(warnMsg, ConsoleColor.Yellow);
                     }
-                    Console.ResetColor();
                 }
 
                 WriteLineGreen($"[{charAnswers.First()}] {question.First()}");
                 WriteLineGreen($"[{charAnswers.Last()}] {question.Last()}");
 
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.Write("> ");
-                Console.ResetColor();
+                WriteColored("> ", ConsoleColor.Green);
 
                 string input = "";
 
@@ -138,6 +169,9 @@ namespace Jelly_Software
                     {
                         if (input.Length > 0)
                         {
+                            // Dev Note: Check dev configuration before issuing sound alert
+                            if (ProgramSettings.AllowBeep)
+                                Console.Beep();
                             Console.WriteLine();
                             break;
                         }

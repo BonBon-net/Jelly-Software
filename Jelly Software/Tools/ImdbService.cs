@@ -1,5 +1,7 @@
-﻿using System;
+﻿using Jelly_Software.AppSettings;
+using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -7,19 +9,15 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using static Jelly_Software.preBuildTools;
-using System.Globalization;
 
 namespace Jelly_Software.Tools
 {
     public class ImdbService
     {
         private static readonly HttpClient _httpClient = new();
-
-        private static readonly string operationCancelled = "\n\nOperation cancelled by the user.";
-
-        // Tracks if a 429 was hit during the current fetch to manage the line gaps
-        private static bool _rateLimitHit = false;
+        private static readonly string OperationCancelled = "\n\nOperation cancelled by the user.";
+        private static bool _RateLimitHit = false;
+        private static bool _InvalidOperation = false;
 
         public static async Task TVShowMain()
         {
@@ -27,43 +25,57 @@ namespace Jelly_Software.Tools
             {
                 try
                 {
-                    WriteLineGreen("Version 1.0.5");
-                    WriteLineGreen("Type 'Help' for more information.\nInsert TV Show Folder Path:");
+                    _RateLimitHit = false;
+                    
+                    if (_InvalidOperation)
+                    {
+                        Console.WriteLine("A");
+                        Ending();
+                        _InvalidOperation = false;
+                    }
 
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    Console.Write("> ");
-                    Console.ResetColor();
+                    preBuildTools.WriteLineGreen(TxtFile.WelcomeMessage);
+                    preBuildTools.WriteColored("> ", ConsoleColor.Green);
 
                     string folderPath = Console.ReadLine() ?? throw new NullReferenceException();
 
                     if (folderPath.ToLower() == "help")
                     {
+                        _InvalidOperation = true;
                         Help();
+                        continue; // Prevents falling through to Ending()
+                    }
+                    else if (folderPath.ToLower() == "settings" || folderPath.ToLower() == "setting")
+                    {
+                        _InvalidOperation = true;
+                        Settings(folderPath);
+                        continue; // Prevents falling through to Ending()
                     }
                     else if (folderPath.ToLower() == "break" || folderPath.ToLower() == "stop" || folderPath.ToLower() == "exit")
                     {
-                        WriteLineGreen("Exiting the application...");
+                        preBuildTools.WriteLineGreen("Exiting the application...");
                         break;
                     }
                     else
                     {
                         if (!Directory.Exists(folderPath))
                         {
-                            Console.ForegroundColor = ConsoleColor.Red;
-                            Console.WriteLine("Error: The folder path does not exist.\nPlease check the path and try again.");
-                            Console.ResetColor();
+                            // Dev Note: Check dev configuration before issuing sound alert
+                            if (ProgramSettings.AllowBeep)
+                                Console.Beep();
+                            preBuildTools.WriteLineColored("Error: The folder path does not exist.\nPlease check the path and try again.", ConsoleColor.Red);
                             Ending();
                             continue;
                         }
                         if (!Directory.GetDirectories(folderPath).Any(d => Regex.IsMatch(d.Split("\\").Last(), @"(?i)(?:season|series|s)\s*\d+")))
                         {
-                            Console.ForegroundColor = ConsoleColor.Red;
-                            Console.WriteLine("[ERROR] No valid season folders found.\nExpected folder format: 'Season 01', 'Series 1', or 'S01'.");
-                            Console.ResetColor();
+                            // Dev Note: Check dev configuration before issuing sound alert
+                            if (ProgramSettings.AllowBeep)
+                                Console.Beep();
+                            preBuildTools.WriteLineColored("[ERROR] No valid season folders found.\nExpected folder format: 'Season 01', 'Series 1', or 'S01'.", ConsoleColor.Red);
                             Ending();
                             continue;
                         }
-                        // 3rd Check: Checks if any season folder contains at least one valid video file
                         if (!Directory.GetDirectories(folderPath)
                             .Where(d => Regex.IsMatch(d.Split("\\").Last(), @"(?i)(?:season|series|s)\s*\d+"))
                             .SelectMany(d => Directory.GetFiles(d))
@@ -73,42 +85,39 @@ namespace Jelly_Software.Tools
                                 return ext == "mkv" || ext == "mp4" || ext == "avi";
                             }))
                         {
-                            Console.ForegroundColor = ConsoleColor.Red;
-                            Console.WriteLine("[ERROR] No valid episode files (.mkv, .mp4, .avi) found inside the season folders.");
-                            Console.ResetColor();
+                            // Dev Note: Check dev configuration before issuing sound alert
+                            if (ProgramSettings.AllowBeep)
+                                Console.Beep();
+                            preBuildTools.WriteLineColored("[ERROR] No valid episode files (.mkv, .mp4, .avi) found inside the season folders.", ConsoleColor.Red);
                             Ending();
                             continue;
                         }
 
-                        folderPath = $"{GoToParentDirectory(folderPath)}\\{SanitizeFilename(folderPath.Split("\\").Last())}";
+                        folderPath = $"{preBuildTools.GoToParentDirectory(folderPath)}\\{preBuildTools.SanitizeFilename(folderPath.Split("\\").Last())}";
 
                         string tvShowFolderName = folderPath.Split("\\").Last();
                         string tvShowName = GetTvShowFolderTvShowName(tvShowFolderName);
                         string releaseYear = GetTvShowFolderReleaseYear(tvShowFolderName);
                         string imdbId = GetTvShowFolderImdbId(tvShowFolderName);
 
-                        // Reset the flag for each new show search
-                        _rateLimitHit = false;
-
-                        ShowMediaMetadata showMetadata = null;
-                        ShowMediaMetadata initialShowMetadata = null;
+                        ShowMediaMetadata showMetadata = null!;
+                        ShowMediaMetadata initialShowMetadata = null!;
                         bool needsManualSelection = false;
 
-                        // Check if IMDb ID is a placeholder like tt0000000
                         bool isPlaceholderImdb = imdbId.Equals("tt0000000", StringComparison.OrdinalIgnoreCase) || Regex.IsMatch(imdbId, @"^tt0{7,}$");
 
                         if (isPlaceholderImdb)
                         {
-                            Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine($"\n[WARNING] Placeholder IMDb ID '{imdbId}' detected. Ignoring IMDb ID and searching database...");
-                            Console.ResetColor();
+                            // Dev Note: Check dev configuration before issuing sound alert
+                            if (ProgramSettings.AllowBeep)
+                                Console.Beep();
+                            preBuildTools.WriteLineColored($"\n[WARNING] Placeholder IMDb ID '{imdbId}' detected. Ignoring IMDb ID and searching database...", ConsoleColor.Yellow);
                             needsManualSelection = true;
                         }
                         else
                         {
                             try
                             {
-                                // Test initial fetch to verify if IMDb ID data matches folder name/year
                                 initialShowMetadata = await GetShowAsync(imdbId, tvShowFolderName);
 
                                 int.TryParse(releaseYear, out int folderYearInt);
@@ -117,9 +126,10 @@ namespace Jelly_Software.Tools
 
                                 if (!titleMatches || !yearMatches)
                                 {
-                                    Console.ForegroundColor = ConsoleColor.Yellow;
-                                    Console.WriteLine($"\n[WARNING] Folder name '{tvShowName} ({releaseYear})' doesn't perfectly match the fetched data: '{initialShowMetadata.ShowTitle} ({initialShowMetadata.ShowYear})'.");
-                                    Console.ResetColor();
+                                    // Dev Note: Check dev configuration before issuing sound alert
+                                    if (ProgramSettings.AllowBeep)
+                                        Console.Beep();
+                                    preBuildTools.WriteLineColored($"\n[WARNING] Folder name '{tvShowName} ({releaseYear})' doesn't perfectly match fetched data: '{initialShowMetadata.ShowTitle} ({initialShowMetadata.ShowYear})'.", ConsoleColor.Yellow);
                                     needsManualSelection = true;
                                 }
                                 else
@@ -129,19 +139,18 @@ namespace Jelly_Software.Tools
                             }
                             catch
                             {
-                                Console.ForegroundColor = ConsoleColor.Yellow;
-                                Console.WriteLine($"\n[WARNING] Could not automatically pull exact match for IMDb ID: {imdbId}.");
-                                Console.ResetColor();
+                                // Dev Note: Check dev configuration before issuing sound alert
+                                if (ProgramSettings.AllowBeep)
+                                    Console.Beep();
+                                preBuildTools.WriteLineColored($"\n[WARNING] Could not automatically pull exact match for IMDb ID: {imdbId}.", ConsoleColor.Yellow);
                                 needsManualSelection = true;
                             }
                         }
 
-                        // Build manual selection list if there's a mismatch, API failure, or placeholder IMDb ID
                         if (needsManualSelection)
                         {
                             var searchResults = new List<SearchResult>();
 
-                            // 1. If an initial show was successfully fetched via the provided IMDb ID, add it to the list first
                             if (initialShowMetadata != null && !isPlaceholderImdb)
                             {
                                 searchResults.Add(new SearchResult
@@ -153,20 +162,19 @@ namespace Jelly_Software.Tools
                                 });
                             }
 
-                            // 2. Perform multi-query search to get options
                             string cleanTvShowName = Regex.Replace(tvShowName, @"\s*\(\d{4}\)|\s*\[.*?\]", "").Trim();
-                            WriteLineGreen($"Searching database for variations of '{cleanTvShowName}'...");
+                            preBuildTools.WriteLineGreen($"Searching database for variations of '{cleanTvShowName}'...");
 
                             var rawSearchResults = await SearchTvMazeMultipleAsync(cleanTvShowName);
 
                             foreach (var res in rawSearchResults)
                             {
-                                // Check if result is a movie or TV show
                                 if (res.Type.Equals("TV Movie", StringComparison.OrdinalIgnoreCase) || res.Type.Equals("Movie", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    Console.ForegroundColor = ConsoleColor.Yellow;
-                                    Console.WriteLine($"\n[WARNING] '{res.Title} ({res.Year})' is classified as a movie ({res.Type}), skipping from TV show selection list.");
-                                    Console.ResetColor();
+                                    // Dev Note: Check dev configuration before issuing sound alert
+                                    if (ProgramSettings.AllowBeep)
+                                        Console.Beep();
+                                    preBuildTools.WriteLineColored($"\n[WARNING] '{res.Title} ({res.Year})' is classified as a movie ({res.Type}), skipping from TV show selection list.", ConsoleColor.Yellow);
                                 }
                                 else
                                 {
@@ -177,19 +185,19 @@ namespace Jelly_Software.Tools
                                 }
                             }
 
-                            // Handle zero search results with manual IMDb option
                             if (searchResults.Count == 0)
                             {
-                                WriteLineGreen("No alternative TV shows found on TVMaze.");
+                                // Dev Note: Check dev configuration before issuing sound alert
+                                if (ProgramSettings.AllowBeep)
+                                    Console.Beep();
+                                preBuildTools.WriteLineGreen("No alternative TV shows found on TVMaze.");
                                 string[] manualQ = new string[] { "Would you like to manually enter a correct IMDb ID?", "Cancel operation" };
                                 char[] manualA = new char[] { 'Y', 'N' };
-                                bool wantManual = GetUserConfirmation(manualQ, manualA, new string[] { });
+                                bool wantManual = preBuildTools.GetUserConfirmation(manualQ, manualA, new string[] { });
 
                                 if (wantManual)
                                 {
-                                    Console.ForegroundColor = ConsoleColor.Green;
-                                    Console.Write("Enter the correct IMDb ID (e.g., tt0182576) > ");
-                                    Console.ResetColor();
+                                    preBuildTools.WriteColored("Enter the correct IMDb ID (e.g., tt0182576) > ", ConsoleColor.Green);
 
                                     string manualImdb = Console.ReadLine()?.Trim() ?? string.Empty;
 
@@ -200,35 +208,43 @@ namespace Jelly_Software.Tools
                                     }
                                     else
                                     {
-                                        Console.ForegroundColor = ConsoleColor.Red;
-                                        Console.WriteLine("Invalid IMDb ID format. Canceling operation.");
-                                        Console.ResetColor();
+                                        // Dev Note: Check dev configuration before issuing sound alert
+                                        if (ProgramSettings.AllowBeep)
+                                            Console.Beep();
+
+                                        preBuildTools.WriteLineColored("Invalid IMDb ID format. Canceling operation.", ConsoleColor.Red);
                                         Ending();
                                         continue;
                                     }
                                 }
                                 else
                                 {
-                                    WriteLineGreen(operationCancelled);
+                                    // Dev Note: Check dev configuration before issuing sound alert
+                                    if (ProgramSettings.AllowBeep)
+                                        Console.Beep();
+
+                                    preBuildTools.WriteLineGreen(OperationCancelled);
                                     Ending();
                                     continue;
                                 }
                             }
                             else
                             {
-                                WriteLineGreen("\nFound multiple possibilities. Please confirm which series this is:");
+                                // Dev Note: Check dev configuration before issuing sound alert
+                                if (ProgramSettings.AllowBeep)
+                                    Console.Beep();
+
+                                preBuildTools.WriteLineGreen("\nFound multiple possibilities. Please confirm which series this is:");
                                 for (int i = 0; i < searchResults.Count; i++)
                                 {
-                                    WriteLineGreen($"  [{i + 1}] {searchResults[i].Title} ({searchResults[i].Year}) - IMDb ID: {searchResults[i].ImdbId}");
+                                    preBuildTools.WriteLineGreen($"  [{i + 1}] {searchResults[i].Title} ({searchResults[i].Year}) - IMDb ID: {searchResults[i].ImdbId}");
                                 }
-                                WriteLineGreen("  [0] None of these (Cancel)");
+                                preBuildTools.WriteLineGreen("  [0] None of these (Cancel)");
 
                                 int selectedIdx = -1;
                                 while (true)
                                 {
-                                    Console.ForegroundColor = ConsoleColor.Green;
-                                    Console.Write("\nEnter the number of the correct show > ");
-                                    Console.ResetColor();
+                                    preBuildTools.WriteColored("\nEnter the number of the correct show > ", ConsoleColor.Green);
 
                                     string choice = Console.ReadLine()?.Trim() ?? string.Empty;
 
@@ -236,14 +252,17 @@ namespace Jelly_Software.Tools
                                     {
                                         break;
                                     }
-                                    Console.ForegroundColor = ConsoleColor.Red;
-                                    Console.WriteLine("Invalid input. Please enter a valid number from the list.");
-                                    Console.ResetColor();
+
+                                    // Dev Note: Check dev configuration before issuing sound alert
+                                    if (ProgramSettings.AllowBeep)
+                                        Console.Beep();
+
+                                    preBuildTools.WriteLineColored("Invalid input. Please enter a valid number from the list.", ConsoleColor.Red);
                                 }
 
                                 if (selectedIdx == 0)
                                 {
-                                    WriteLineGreen(operationCancelled);
+                                    preBuildTools.WriteLineGreen(OperationCancelled);
                                     Ending();
                                     continue;
                                 }
@@ -256,8 +275,7 @@ namespace Jelly_Software.Tools
                                     Console.WriteLine();
                                     string[] repQ = new string[] { $"Would you like to replace the current IMDb ID ({imdbId}) with the new IMDb ID ({newImdbId})?", "Keep current / Cancel" };
                                     char[] repA = new char[] { 'Y', 'N' };
-                                    string[] repW = new string[] { };
-                                    bool replaceImdb = GetUserConfirmation(repQ, repA, repW);
+                                    bool replaceImdb = preBuildTools.GetUserConfirmation(repQ, repA, new string[] { });
 
                                     if (replaceImdb)
                                     {
@@ -265,7 +283,7 @@ namespace Jelly_Software.Tools
                                     }
                                     else
                                     {
-                                        WriteLineGreen(operationCancelled);
+                                        preBuildTools.WriteLineGreen(OperationCancelled);
                                         Ending();
                                         continue;
                                     }
@@ -281,51 +299,51 @@ namespace Jelly_Software.Tools
 
                         showMetadata!.FolderPath = folderPath;
 
-                        // Check files for IMDb IDs and assign them to matching episodes
                         bool hasFileImdbIds = CheckAndApplyFileImdbIds(showMetadata);
 
                         if (hasFileImdbIds)
                         {
-                            WriteLineGreen("\n[INFO] Found IMDb IDs in video file names and mapped them to corresponding episodes.");
+                            // Dev Note: Check dev configuration before issuing sound alert
+                            if (ProgramSettings.AllowBeep)
+                                Console.Beep();
+
+                            preBuildTools.WriteLineGreen("\n[INFO] Found IMDb IDs in video file names and mapped them to corresponding episodes.");
                         }
 
-                        // Final confirmation check
                         Console.WriteLine();
                         string[] confirmQ = new string[] { $"Is this the correct TV Show: {showMetadata.ShowTitle} ({showMetadata.ShowYear})?", "Cancel operation" };
                         char[] confirmA = new char[] { 'Y', 'N' };
-                        string[] confirmWarnings = new string[] { };
-                        bool confirmShow = GetUserConfirmation(confirmQ, confirmA, confirmWarnings);
+                        bool confirmShow = preBuildTools.GetUserConfirmation(confirmQ, confirmA, new string[] { });
 
                         if (confirmShow)
                         {
-                            WriteLineGreen($"\nFetching metadata for IMDb ID: {imdbId} and folder: {tvShowFolderName}...\n");
+                            preBuildTools.WriteLineGreen($"\nFetching metadata for IMDb ID: {imdbId} and folder: {tvShowFolderName}...\n");
 
                             showMetadata.FolderPath = folderPath;
-                            if (_rateLimitHit)
+                            if (_RateLimitHit)
                             {
-                                Console.Write("\n\n\n\n");
-                                WriteLineGreen($"Show Title: {showMetadata.ShowTitle}");
+                                preBuildTools.WriteLineGreen($"\n\n\n\nShow Title: {showMetadata.ShowTitle}");
                             }
                             else
                             {
-                                WriteLineGreen($"\nShow Title: {showMetadata.ShowTitle}");
+                                preBuildTools.WriteLineGreen($"\nShow Title: {showMetadata.ShowTitle}");
                             }
 
-                            WriteLineGreen($"Show Year: {showMetadata.ShowYear}");
-                            WriteLineGreen($"IMDb ID: {showMetadata.ShowImdbId}");
-                            WriteLineGreen($"Folder Path: {showMetadata.FolderName}");
-                            WriteLineGreen("Seasons and Episodes:");
+                            preBuildTools.WriteLineGreen($"Show Year: {showMetadata.ShowYear}");
+                            preBuildTools.WriteLineGreen($"IMDb ID: {showMetadata.ShowImdbId}");
+                            preBuildTools.WriteLineGreen($"Folder Path: {showMetadata.FolderName}");
+                            preBuildTools.WriteLineGreen("Seasons and Episodes:");
 
                             foreach (var season in showMetadata.Seasons)
                             {
-                                WriteLineGreen($"\nSeason {season.SeasonNumber} ({season.SeasonYear}):");
+                                preBuildTools.WriteLineGreen($"\nSeason {season.SeasonNumber} ({season.SeasonYear}):");
                                 foreach (var episode in season.Episodes)
                                 {
-                                    WriteLineGreen($"  Episode {episode.EpisodeNumber}: {episode.EpisodeTitle} ({episode.EpisodeYear}) - IMDb ID: {episode.EpisodeImdbId}");
+                                    preBuildTools.WriteLineGreen($"  Episode {episode.EpisodeNumber}: {episode.EpisodeTitle} ({episode.EpisodeYear}) - IMDb ID: {episode.EpisodeImdbId}");
                                 }
                             }
 
-                            WriteLineGreen("\nMetadata fetched successfully!");
+                            preBuildTools.WriteLineGreen("\nMetadata fetched successfully!");
                             Console.WriteLine();
 
                             string safeShowTitle = string.Concat(showMetadata.ShowTitle.Where(c => !Path.GetInvalidFileNameChars().Contains(c))).Trim();
@@ -340,107 +358,107 @@ namespace Jelly_Software.Tools
                                     "Keep current folder name"
                                 };
                                 char[] folderA = new char[] { 'Y', 'N' };
-                                bool renameFolder = GetUserConfirmation(folderQ, folderA, new string[] { });
+                                bool renameFolder = preBuildTools.GetUserConfirmation(folderQ, folderA, new string[] { });
 
                                 if (renameFolder)
                                 {
-                                    string newParentDirectory = $"{GoToParentDirectory(showMetadata.FolderPath)}\\{expectedFolderName}";
-                                    RenameFileOrFolder(showMetadata.FolderPath, newParentDirectory);
+                                    string newParentDirectory = $"{preBuildTools.GoToParentDirectory(showMetadata.FolderPath)}\\{expectedFolderName}";
+                                    preBuildTools.RenameFileOrFolder(showMetadata.FolderPath, newParentDirectory);
                                     showMetadata.FolderPath = newParentDirectory;
                                     tvShowFolderName = expectedFolderName;
-                                    WriteLineGreen($"Parent folder renamed successfully to: {expectedFolderName}");
+                                    preBuildTools.WriteLineGreen($"Parent folder renamed successfully to: {expectedFolderName}");
                                 }
                             }
 
                             Console.WriteLine();
                             string[] question = new string[2] { "Would you like to rename the TV show files?", "Cancel operation" };
                             char[] charAnswers = new char[2] { 'Y', 'N' };
-                            string[] warnings = new string[] { };
-                            bool EditFiles = GetUserConfirmation(question, charAnswers, warnings);
+                            bool EditFiles = preBuildTools.GetUserConfirmation(question, charAnswers, new string[] { });
 
                             if (EditFiles)
                             {
-                                // --- Options for Renaming ---
-                                bool UseEpisodeReleaseYear = false, dashAfterReleaseYear = false, AllowEpisodeName = false, dashAfterSeasonEpisode = false, AllowImdb = false, dashBeforeImdb = false, AllowSeasonYear = false;
+                                bool UseEpisodeReleaseYear = false, dashAfterReleaseYear = false, AllowEpisodeName = false, dashAfterSeasonEpisode = false, AllowImdb = false, dashBeforeImdb = false, AllowSeasonYear = false, AllowEpisodeYear = false;
 
                                 Console.WriteLine();
                                 question = new string[2] { "Yes, add (Release Year) for season folders", "No, don't add (Release Year) for season folders" };
                                 charAnswers = new char[2] { 'Y', 'N' };
-                                warnings = new string[] { };
-                                AllowSeasonYear = GetUserConfirmation(question, charAnswers, warnings);
+                                AllowSeasonYear = preBuildTools.GetUserConfirmation(question, charAnswers, new string[] { });
 
                                 Console.WriteLine();
-                                question = new string[2] { "Use episode release year in naming", "Use TV show release year in naming" };
-                                charAnswers = new char[2] { '1', '2' };
-                                warnings = new string[] { };
-                                UseEpisodeReleaseYear = GetUserConfirmation(question, charAnswers, warnings);
+                                question = new string[2] { "Yes, add (Release Year) for episode naming", "No, don't add (Release Year) for episode naming" };
+                                charAnswers = new char[2] { 'Y', 'N' };
+                                AllowEpisodeYear = preBuildTools.GetUserConfirmation(question, charAnswers, new string[] { });
+
+                                if (AllowEpisodeYear)
+                                {
+                                    Console.WriteLine();
+                                    question = new string[2] { "Use episode release year in naming", "Use TV show release year in naming" };
+                                    charAnswers = new char[2] { '1', '2' };
+                                    UseEpisodeReleaseYear = preBuildTools.GetUserConfirmation(question, charAnswers, new string[] { });
+                                }
 
                                 Console.WriteLine();
                                 question = new string[2] { "Yes, add dash '-' between (Release Year) & SxxExx", "No, don't add dash '-'" };
                                 charAnswers = new char[2] { 'Y', 'N' };
-                                warnings = new string[] { };
-                                dashAfterReleaseYear = GetUserConfirmation(question, charAnswers, warnings);
+                                dashAfterReleaseYear = preBuildTools.GetUserConfirmation(question, charAnswers, new string[] { });
 
                                 Console.WriteLine();
                                 question = new string[2] { "Include episode names", "Exclude episode names" };
                                 charAnswers = new char[2] { 'Y', 'N' };
-                                warnings = new string[] { };
-                                AllowEpisodeName = GetUserConfirmation(question, charAnswers, warnings);
+                                AllowEpisodeName = preBuildTools.GetUserConfirmation(question, charAnswers, new string[] { });
 
                                 if (AllowEpisodeName)
                                 {
                                     Console.WriteLine();
                                     question = new string[2] { "Yes, add dash '-' between SxxExx & Episode Name", "No, don't add dash '-'" };
                                     charAnswers = new char[2] { 'Y', 'N' };
-                                    warnings = new string[] { };
-                                    dashAfterSeasonEpisode = GetUserConfirmation(question, charAnswers, warnings);
+                                    dashAfterSeasonEpisode = preBuildTools.GetUserConfirmation(question, charAnswers, new string[] { });
                                 }
 
                                 Console.WriteLine();
                                 question = new string[2] { "Use IMDb IDs in file names", "Don't use IMDb IDs in file names" };
                                 charAnswers = new char[2] { 'Y', 'N' };
-                                warnings = new string[] { "The IMDb ID is not automated due to anti-bot restrictions", "Existing IMDb IDs in file names will be preserved and used" };
-                                AllowImdb = GetUserConfirmation(question, charAnswers, warnings);
+                                string[] warnings = new string[] { "The IMDb ID is not automated due to anti-bot restrictions", "Existing IMDb IDs in file names will be preserved and used" };
+                                AllowImdb = preBuildTools.GetUserConfirmation(question, charAnswers, warnings);
 
                                 if (AllowImdb || hasFileImdbIds)
                                 {
                                     Console.WriteLine();
                                     if (hasFileImdbIds)
-                                        WriteLineGreen("IMDb IDs found in files. Would you like to add a dash '-' between Episode Name & IMDb ID?");
+                                        preBuildTools.WriteLineGreen("IMDb IDs found in files. Would you like to add a dash '-' between Episode Name & IMDb ID?");
 
                                     question = new string[2] { "Yes, add dash '-' between Episode Name & IMDb ID", "No, don't add dash '-'" };
                                     charAnswers = new char[2] { 'Y', 'N' };
-                                    warnings = new string[] { };
-                                    dashBeforeImdb = GetUserConfirmation(question, charAnswers, warnings);
+                                    dashBeforeImdb = preBuildTools.GetUserConfirmation(question, charAnswers, new string[] { });
                                 }
 
                                 Console.WriteLine();
                                 question = new string[2] { "Continue renaming", "Cancel renaming" };
                                 charAnswers = new char[2] { 'Y', 'N' };
                                 warnings = new string[] { "This is your last chance before all files are renamed!" };
-                                bool lastChance = GetUserConfirmation(question, charAnswers, warnings);
+                                bool lastChance = preBuildTools.GetUserConfirmation(question, charAnswers, warnings);
 
                                 if (lastChance)
                                 {
-                                    ChanceFilesName(showMetadata, EditFiles, UseEpisodeReleaseYear, AllowEpisodeName, AllowImdb, dashAfterReleaseYear, dashAfterSeasonEpisode, dashBeforeImdb, AllowSeasonYear);
+                                    ChanceFilesName(showMetadata, EditFiles, UseEpisodeReleaseYear, AllowEpisodeName, AllowImdb, dashAfterReleaseYear, dashAfterSeasonEpisode, dashBeforeImdb, AllowSeasonYear, AllowEpisodeYear);
                                 }
                                 else
                                 {
-                                    WriteLineGreen(operationCancelled);
+                                    preBuildTools.WriteLineGreen(OperationCancelled);
                                     Ending();
                                     continue;
                                 }
                             }
                             else
                             {
-                                WriteLineGreen(operationCancelled);
+                                preBuildTools.WriteLineGreen(OperationCancelled);
                                 Ending();
                                 continue;
                             }
                         }
                         else
                         {
-                            WriteLineGreen(operationCancelled);
+                            preBuildTools.WriteLineGreen(OperationCancelled);
                             Ending();
                             continue;
                         }
@@ -448,10 +466,12 @@ namespace Jelly_Software.Tools
                 }
                 catch (Exception ex)
                 {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"\n\nError: {ex.Message}");
-                    Console.WriteLine("Please try again or type 'Help' for more information.");
-                    Console.ResetColor();
+                    // Dev Note: Check dev configuration before issuing sound alert
+                    if (ProgramSettings.AllowBeep)
+                        Console.Beep();
+
+                    preBuildTools.WriteLineColored($"\n\nError: {ex.Message}", ConsoleColor.Red);
+                    preBuildTools.WriteLineColored("Please try again or type 'Help' for more information.", ConsoleColor.Red);
                 }
 
                 Ending();
@@ -460,9 +480,11 @@ namespace Jelly_Software.Tools
 
             void Ending()
             {
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.Write("\n\n\nPress any key to continue...");
-                Console.ResetColor();
+                // Dev Note: Check dev configuration before issuing sound alert
+                if (ProgramSettings.AllowBeep)
+                    Console.Beep();
+
+                preBuildTools.WriteColored("\n\n\nPress any key to continue...", ConsoleColor.Green);
                 Console.ReadKey();
                 Console.Clear();
             }
@@ -553,14 +575,14 @@ namespace Jelly_Software.Tools
             return allResults.OrderBy(r => r.Year).ToList();
         }
 
-        private static void ChanceFilesName(ShowMediaMetadata showMetadata, bool EditFiles, bool UseEpisodeReleaseYear, bool AllowEpisodeName, bool AllowImdb, bool dashAfterReleaseYear, bool dashAfterSeasonEpisode, bool dashAfterImdb, bool AllowSeasonYear)
+        private static void ChanceFilesName(ShowMediaMetadata showMetadata, bool EditFiles, bool UseEpisodeReleaseYear, bool AllowEpisodeName, bool AllowImdb, bool dashAfterReleaseYear, bool dashAfterSeasonEpisode, bool dashAfterImdb, bool AllowSeasonYear, bool AllowEpisodeYear)
         {
             List<FileInfo> files = new List<FileInfo>();
             List<DirectoryInfo> directories = new List<DirectoryInfo>();
             List<string> errorMessages = new List<string>();
 
             Console.WriteLine();
-            WriteLineGreen("Renaming files and folders...");
+            preBuildTools.WriteLineGreen("Renaming files and folders...");
 
             directories.AddRange(new DirectoryInfo(showMetadata.FolderPath).GetDirectories());
             List<(string FolderName, int SeasonNum)> seasonFoldersList = new List<(string, int)>();
@@ -583,10 +605,12 @@ namespace Jelly_Software.Tools
 
                     if (metaSeasonIndex < 0 || metaSeasonIndex >= showMetadata.Seasons.Count)
                     {
+                        // Dev Note: Check dev configuration before issuing sound alert
+                        if (ProgramSettings.AllowBeep)
+                            Console.Beep();
+
                         errorMessages.Add($"[ERROR] Metadata for Season {parsedSeasonNum} not found. Skipping folder.");
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine($"\n{errorMessages.Last()}");
-                        Console.ResetColor();
+                        preBuildTools.WriteLineColored($"\n{errorMessages.Last()}", ConsoleColor.Red);
                         directories.RemoveAt(i);
                         seasonSkippedCount++;
                         continue;
@@ -600,23 +624,25 @@ namespace Jelly_Software.Tools
                     if (directories[i].FullName.Split("\\").Last() != seasonFolderFormat)
                     {
                         seasonChangedCount++;
-                        RenameFileOrFolder(directories[i].FullName, $"{GoToParentDirectory(directories[i].FullName)}\\{seasonFolderFormat}");
+                        preBuildTools.RenameFileOrFolder(directories[i].FullName, $"{preBuildTools.GoToParentDirectory(directories[i].FullName)}\\{seasonFolderFormat}");
                     }
 
                     i++;
                 }
                 else
                 {
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.WriteLine($"Warning: The folder name '{folderName}' does not match the expected season format. Skipping this folder.");
-                    Console.ResetColor();
+                    // Dev Note: Check dev configuration before issuing sound alert
+                    if (ProgramSettings.AllowBeep)
+                        Console.Beep();
+
+                    preBuildTools.WriteLineColored($"Warning: Folder name '{folderName}' does not match season format. Skipping.", ConsoleColor.Yellow);
                     directories.RemoveAt(i);
                     seasonSkippedCount++;
                     continue;
                 }
             }
 
-            WriteLineGreen($"\nTotal Folders: {seasonFoldersList.Count + seasonSkippedCount}\nTotal Seasons: {seasonFoldersList.Count}\nChanged: {seasonChangedCount}\nSkipped: {seasonSkippedCount}");
+            preBuildTools.WriteLineGreen($"\nTotal Folders: {seasonFoldersList.Count + seasonSkippedCount}\nTotal Seasons: {seasonFoldersList.Count}\nChanged: {seasonChangedCount}\nSkipped: {seasonSkippedCount}");
             int episodeSkippedCount = 0;
             string unusedFolderPath = $"{showMetadata.FolderPath}\\Unused Episodes";
 
@@ -701,28 +727,33 @@ namespace Jelly_Software.Tools
                     int epIndex = epNum - 1;
                     if (epIndex < 0 || epIndex >= showMetadata.Seasons[metaSeasonIndex].Episodes.Count)
                     {
+                        // Dev Note: Check dev configuration before issuing sound alert
+                        if (ProgramSettings.AllowBeep)
+                            Console.Beep();
+
                         errorMessages.Add($"[ERROR] Skipping '{epString}': Metadata only has {showMetadata.Seasons[metaSeasonIndex].Episodes.Count} episodes for Season {currentSeasonNum}.");
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine($"\n{errorMessages.Last()}");
-                        Console.ResetColor();
+                        preBuildTools.WriteLineColored($"\n{errorMessages.Last()}", ConsoleColor.Red);
                         episodeSkippedCount += filesInGroup.Count;
                         continue;
                     }
 
                     string baseNewName = showMetadata.ShowTitle;
-                    if (UseEpisodeReleaseYear)
+                    if (AllowEpisodeYear)
                     {
-                        if (dashAfterReleaseYear)
-                            baseNewName += $" ({showMetadata.Seasons[metaSeasonIndex].Episodes[epIndex].EpisodeYear}) -";
+                        if (UseEpisodeReleaseYear)
+                        {
+                            if (dashAfterReleaseYear)
+                                baseNewName += $" ({showMetadata.Seasons[metaSeasonIndex].Episodes[epIndex].EpisodeYear}) -";
+                            else
+                                baseNewName += $" ({showMetadata.Seasons[metaSeasonIndex].Episodes[epIndex].EpisodeYear})";
+                        }
                         else
-                            baseNewName += $" ({showMetadata.Seasons[metaSeasonIndex].Episodes[epIndex].EpisodeYear})";
-                    }
-                    else
-                    {
-                        if (dashAfterReleaseYear)
-                            baseNewName += $" ({showMetadata.ShowYear}) -";
-                        else
-                            baseNewName += $" ({showMetadata.ShowYear})";
+                        {
+                            if (dashAfterReleaseYear)
+                                baseNewName += $" ({showMetadata.ShowYear}) -";
+                            else
+                                baseNewName += $" ({showMetadata.ShowYear})";
+                        }
                     }
 
                     baseNewName += $" {epString}";
@@ -771,21 +802,23 @@ namespace Jelly_Software.Tools
 
                         if (fileData.OriginalFile.Name != finalName)
                         {
-                            WriteLineGreen($"Renaming '{fileData.OriginalFile.Name}' to '{finalName}'");
-                            RenameFileOrFolder(fileData.OriginalFile.FullName, $"{GoToParentDirectory(fileData.OriginalFile.FullName)}\\{finalName}");
+                            preBuildTools.WriteLineGreen($"Renaming '{fileData.OriginalFile.Name}' to '{finalName}'");
+                            preBuildTools.RenameFileOrFolder(fileData.OriginalFile.FullName, $"{preBuildTools.GoToParentDirectory(fileData.OriginalFile.FullName)}\\{finalName}");
                         }
                     }
                     else
                     {
-                        Console.ForegroundColor = ConsoleColor.Yellow;
-                        Console.WriteLine($"\n[ATTENTION] Multiple files detected for {epString}:");
-                        Console.ResetColor();
+                        // Dev Note: Check dev configuration before issuing sound alert
+                        if (ProgramSettings.AllowBeep)
+                            Console.Beep();
+
+                        preBuildTools.WriteLineColored($"\n[ATTENTION] Multiple files detected for {epString}:", ConsoleColor.Yellow);
 
                         for (int k = 0; k < filesInGroup.Count; k++)
-                            WriteLineGreen($"  [{k + 1}] {filesInGroup[k].OriginalFile.Name}");
+                            preBuildTools.WriteLineGreen($"  [{k + 1}] {filesInGroup[k].OriginalFile.Name}");
 
-                        WriteLineGreen("  [A] Keep ALL (Rename as Part 1, Part 2...)");
-                        WriteLineGreen("  [S] Skip ALL (Moves everything to Unused folder)\n");
+                        preBuildTools.WriteLineGreen("  [A] Keep ALL (Rename as Part 1, Part 2...)");
+                        preBuildTools.WriteLineGreen("  [S] Skip ALL (Moves everything to Unused folder)\n");
 
                         string choice;
                         bool isFirstAttempt = true;
@@ -793,12 +826,10 @@ namespace Jelly_Software.Tools
                         {
                             if (!isFirstAttempt)
                             {
-                                ClearConsoleLines(2);
+                                preBuildTools.ClearConsoleLines(2);
                             }
 
-                            Console.ForegroundColor = ConsoleColor.Green;
-                            Console.Write("Which one do you want to keep? (Enter number - '1', '2', 'A', or 'S') > ");
-                            Console.ResetColor();
+                            preBuildTools.WriteColored("Which one do you want to keep? (Enter number - '1', '2', 'A', or 'S') > ", ConsoleColor.Green);
 
                             choice = Console.ReadLine()?.Trim().ToUpper() ?? string.Empty;
 
@@ -807,9 +838,11 @@ namespace Jelly_Software.Tools
                             if (int.TryParse(choice, out int selectedNum) && selectedNum >= 1 && selectedNum <= filesInGroup.Count)
                                 break;
 
-                            Console.ForegroundColor = ConsoleColor.Red;
-                            Console.WriteLine("Invalid input. Please enter a valid number from the list ('1', '2', 'A', or 'S').");
-                            Console.ResetColor();
+                            // Dev Note: Check dev configuration before issuing sound alert
+                            if (ProgramSettings.AllowBeep)
+                                Console.Beep();
+
+                            preBuildTools.WriteLineColored("Invalid input. Please enter a valid number from the list ('1', '2', 'A', or 'S').", ConsoleColor.Red);
                             isFirstAttempt = false;
                         }
 
@@ -819,7 +852,7 @@ namespace Jelly_Software.Tools
                             {
                                 var fileData = filesInGroup[k];
                                 string finalName = $"{baseNewName} - Part {k + 1}.{fileData.Extension}";
-                                RenameFileOrFolder(fileData.OriginalFile.FullName, $"{GoToParentDirectory(fileData.OriginalFile.FullName)}\\{finalName}");
+                                preBuildTools.RenameFileOrFolder(fileData.OriginalFile.FullName, $"{preBuildTools.GoToParentDirectory(fileData.OriginalFile.FullName)}\\{finalName}");
                             }
                         }
                         else if (choice == "S")
@@ -830,10 +863,10 @@ namespace Jelly_Software.Tools
                             {
                                 var fileData = filesInGroup[k];
                                 string unusedDestination = $"{unusedFolderPath}\\{fileData.OriginalFile.Name}";
-                                RenameFileOrFolder(fileData.OriginalFile.FullName, unusedDestination);
+                                preBuildTools.RenameFileOrFolder(fileData.OriginalFile.FullName, unusedDestination);
                             }
                             episodeSkippedCount += filesInGroup.Count;
-                            WriteLineGreen($"Moved all files for {epString} to 'Unused Episodes'.");
+                            preBuildTools.WriteLineGreen($"Moved all files for {epString} to 'Unused Episodes'.");
                         }
                         else
                         {
@@ -846,17 +879,17 @@ namespace Jelly_Software.Tools
                                 if (k == selectedIdx)
                                 {
                                     string finalName = $"{baseNewName}.{fileData.Extension}";
-                                    RenameFileOrFolder(fileData.OriginalFile.FullName, $"{GoToParentDirectory(fileData.OriginalFile.FullName)}\\{finalName}");
+                                    preBuildTools.RenameFileOrFolder(fileData.OriginalFile.FullName, $"{preBuildTools.GoToParentDirectory(fileData.OriginalFile.FullName)}\\{finalName}");
                                 }
                                 else
                                 {
                                     string unusedDestination = $"{unusedFolderPath}\\{fileData.OriginalFile.Name}";
-                                    RenameFileOrFolder(fileData.OriginalFile.FullName, unusedDestination);
+                                    preBuildTools.RenameFileOrFolder(fileData.OriginalFile.FullName, unusedDestination);
                                 }
                             }
 
                             episodeSkippedCount += (filesInGroup.Count - 1);
-                            WriteLineGreen($"Kept option {choice}. Moved remaining files to 'Unused Episodes'.");
+                            preBuildTools.WriteLineGreen($"Kept option {choice}. Moved remaining files to 'Unused Episodes'.");
                         }
                     }
                 }
@@ -865,12 +898,14 @@ namespace Jelly_Software.Tools
             if (errorMessages.Count > 0)
             {
                 Console.WriteLine("\n\n");
-                Console.ForegroundColor = ConsoleColor.Red;
                 for (int i = 0; i < errorMessages.Count; i++)
-                    Console.WriteLine($"{i + 1}) {errorMessages[i]}");
+                    preBuildTools.WriteLineColored($"{i + 1}) {errorMessages[i]}", ConsoleColor.Red);
 
-                Console.WriteLine($"\n\nTotal Errors: {errorMessages.Count.ToString("N0", new CultureInfo("de-DE"))}");
-                Console.ResetColor();
+                // Dev Note: Check dev configuration before issuing sound alert
+                if (ProgramSettings.AllowBeep)
+                    Console.Beep();
+
+                preBuildTools.WriteLineColored($"\n\nTotal Errors: {errorMessages.Count.ToString("N0", new CultureInfo("de-DE"))}", ConsoleColor.Red);
             }
         }
 
@@ -886,6 +921,10 @@ namespace Jelly_Software.Tools
 
             if (!showResponse.IsSuccessStatusCode)
             {
+                // Dev Note: Check dev configuration before issuing sound alert
+                if (ProgramSettings.AllowBeep)
+                    Console.Beep();
+
                 if (showResponse.StatusCode == HttpStatusCode.NotFound)
                 {
                     throw new ArgumentException($"No show found for IMDb ID: {imdbId}. Please check the IMDb ID and try again.");
@@ -990,6 +1029,9 @@ namespace Jelly_Software.Tools
             catch
             {
                 // Fallback on error
+                // Dev Note: Check dev configuration before issuing sound alert
+                if (ProgramSettings.AllowBeep)
+                    Console.Beep();
             }
 
             return string.Empty;
@@ -1003,12 +1045,16 @@ namespace Jelly_Software.Tools
 
                 if (response.StatusCode == (HttpStatusCode)429) // Too Many Requests
                 {
-                    _rateLimitHit = true;
+                    // Dev Note: Check dev configuration before issuing sound alert
+                    if (ProgramSettings.AllowBeep)
+                        Console.Beep();
 
-                    int delayMs = 30000;
+                    _RateLimitHit = true;
+
+                    int delayMs = 65000;
                     if (response.Headers.RetryAfter != null && response.Headers.RetryAfter.Delta.HasValue)
                     {
-                        delayMs += (int)response.Headers.RetryAfter.Delta.Value.TotalMilliseconds;
+                        delayMs += (int)response.Headers.RetryAfter.Delta.Value.TotalMilliseconds * 5;
                     }
 
                     DateTime targetTime = DateTime.UtcNow.AddMilliseconds(delayMs);
@@ -1027,20 +1073,20 @@ namespace Jelly_Software.Tools
                         if (remaining.Days > 0 || remaining.Hours > 0 || remaining.Minutes > 0 || remaining.Seconds > 0) formattedTime += $"{remaining.Seconds}s ";
                         formattedTime += $"{remaining.Milliseconds}ms";
 
-                        Console.ForegroundColor = ConsoleColor.Yellow;
-                        Console.Write($"\rRate limit reached (429). Retrying in: {formattedTime}".PadRight(95));
-                        Console.ResetColor();
+                        preBuildTools.WriteColored($"\rRate limit reached (429). Retrying in: {formattedTime}".PadRight(95), ConsoleColor.Yellow);
 
                         await Task.Delay(15);
                     }
 
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.Write($"\rRate limit reached (429). Retrying in: 0ms".PadRight(95));
-                    Console.ResetColor();
+                    preBuildTools.WriteColored($"\rRate limit reached (429). Retrying in: 0ms".PadRight(95), ConsoleColor.Yellow);
+                    // Dev Note: Check dev configuration before issuing sound alert
+                    if (ProgramSettings.AllowBeep)
+                        Console.Beep();
 
                     continue;
                 }
 
+                _RateLimitHit = false;
                 return response;
             }
         }
@@ -1174,51 +1220,147 @@ namespace Jelly_Software.Tools
         {
             Console.WriteLine();
 
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine("===============================================================================");
-            Console.WriteLine("                            JELLY SOFTWARE - HELP                              ");
-            Console.WriteLine("===============================================================================\n");
-            Console.ResetColor();
+            preBuildTools.WriteLineColored("===============================================================================", ConsoleColor.Cyan);
+            preBuildTools.WriteLineColored("                            JELLY SOFTWARE - HELP                              ", ConsoleColor.Cyan);
+            preBuildTools.WriteLineColored("===============================================================================\n", ConsoleColor.Cyan);
 
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine(">> OVERVIEW");
-            Console.ResetColor();
-            WriteLineGreen("  This application fetches metadata for a TV show based on its IMDb ID");
-            WriteLineGreen("  and helps automatically organize and rename your folders and episode files.\n");
+            preBuildTools.WriteLineColored(">> OVERVIEW", ConsoleColor.Yellow);
+            preBuildTools.WriteLineGreen("  This application fetches metadata for a TV show based on its IMDb ID");
+            preBuildTools.WriteLineGreen("  and helps automatically organize and rename your folders and episode files.\n");
 
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine(">> USAGE INSTRUCTIONS");
-            Console.ResetColor();
-            WriteLineGreen("  1. When prompted, insert the full directory path of your TV show folder.");
-            WriteLineGreen("  2. To quit the application at any time, type 'Break', 'Stop', or 'Exit'.\n");
+            preBuildTools.WriteLineColored(">> USAGE INSTRUCTIONS", ConsoleColor.Yellow);
+            preBuildTools.WriteLineGreen("  1. When prompted, insert the full directory path of your TV show folder.");
+            preBuildTools.WriteLineGreen("  2. To quit the application at any time, type 'Break', 'Stop', or 'Exit'.");
+            preBuildTools.WriteLineGreen("  3. To get help with the application at any time, type 'Help'.");
+            preBuildTools.WriteLineGreen("  4. To change settings with the application at any time, type 'Setting' or 'Settings'.\n");
 
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine(">> REQUIRED FOLDER FORMAT");
-            Console.ResetColor();
-            WriteLineGreen("  The parent folder must contain the Title, Release Year, and IMDb ID.");
-            WriteLineGreen("  Format:  Show Title (Year) [imdbid-ttXXXXXXX]");
-            WriteLineGreen("  Example: Breaking Bad (2008) [imdbid-tt0903747]");
-            WriteLineGreen("  Example: Family Guy (1999) [imdbid-tt0182576]\n");
+            preBuildTools.WriteLineColored(">> REQUIRED FOLDER FORMAT", ConsoleColor.Yellow);
+            preBuildTools.WriteLineGreen("  The parent folder must contain the Title, Release Year, and IMDb ID.");
+            preBuildTools.WriteLineGreen("  Format:  Show Title (Year) [imdbid-ttXXXXXXX]");
+            preBuildTools.WriteLineGreen("  Example: Breaking Bad (2008) [imdbid-tt0903747]");
+            preBuildTools.WriteLineGreen("  Example: Family Guy (1999) [imdbid-tt0182576]\n");
 
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine(">> FEATURES & BEHAVIOR");
-            Console.ResetColor();
-            WriteLineGreen("  * Auto-Mapping: The app fetches data and maps it to your season folders.");
-            WriteLineGreen("  * Multi-Part Episodes: If a season folder has multiple files for the same");
-            WriteLineGreen("    episode number, the process will pause and ask you how to resolve it.");
-            WriteLineGreen("  * IMDb ID Auto-Detection: If an IMDb ID (e.g., 'tt0959621') already exists");
-            WriteLineGreen("    in an episode's file name, the app will automatically detect it and tag");
-            WriteLineGreen("    the newly renamed file with it.\n");
+            preBuildTools.WriteLineColored(">> FEATURES & BEHAVIOR", ConsoleColor.Yellow);
+            preBuildTools.WriteLineGreen("  * Auto-Mapping: The app fetches data and maps it to your season folders.");
+            preBuildTools.WriteLineGreen("  * Multi-Part Episodes: If a season folder has multiple files for the same");
+            preBuildTools.WriteLineGreen("    episode number, the process will pause and ask you how to resolve it.");
+            preBuildTools.WriteLineGreen("  * IMDb ID Auto-Detection: If an IMDb ID (e.g., 'tt0959621') already exists");
+            preBuildTools.WriteLineGreen("    in an episode's file name, the app will automatically detect it and tag");
+            preBuildTools.WriteLineGreen("    the newly renamed file with it.");
+            preBuildTools.WriteLineGreen("  * At Local path: A new extension file 'json' will be created unless one already exists.");
 
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine(">> TROUBLESHOOTING & NOTES");
-            Console.ResetColor();
-            WriteLineGreen("  * If the console appears frozen during processing, try pressing [ENTER].");
-            WriteLineGreen("  * Note: This software has currently not been tested on 'Season 0' (Specials).\n");
+            preBuildTools.WriteLineColored(">> TROUBLESHOOTING & NOTES", ConsoleColor.Yellow);
+            preBuildTools.WriteLineGreen("  * If the console appears frozen during processing, try pressing [ENTER].");
+            preBuildTools.WriteLineGreen("  * Note: This software has currently not been tested on 'Season 0' (Specials).\n");
 
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine("===============================================================================\n");
-            Console.ResetColor();
+            preBuildTools.WriteLineColored("===============================================================================\n", ConsoleColor.Cyan);
+        }
+
+        private static void Settings(string input)
+        {
+            Console.CursorVisible = false;
+
+            int settingsCursor = 1;
+            int settingsPage = 1;
+
+            // Updated count to account for AllowColors and AllowBeep
+            int totalSettings = 2;
+            int totalSettingsPages = (totalSettings + 9) / 10;
+
+            while (true)
+            {
+                Console.Clear();
+
+                preBuildTools.WriteLineGreen(TxtFile.WelcomeMessage);
+                preBuildTools.WriteColored("> ", ConsoleColor.Green);
+                Console.WriteLine(input);
+
+                writeSETTINGS();
+
+                ConsoleKeyInfo KEY = Console.ReadKey();
+
+                if (KEY.Key == ConsoleKey.W || KEY.Key == ConsoleKey.UpArrow)
+                {
+                    settingsCursor--;
+                    if (settingsCursor < 1)
+                        settingsCursor = totalSettings;
+                }
+                else if (KEY.Key == ConsoleKey.S || KEY.Key == ConsoleKey.DownArrow)
+                {
+                    settingsCursor++;
+                    if (settingsCursor > totalSettings)
+                        settingsCursor = 1;
+                }
+                else if (KEY.Key == ConsoleKey.A || KEY.Key == ConsoleKey.LeftArrow)
+                {
+                    settingsPage--;
+                    settingsCursor = 1;
+                    if (settingsPage < 1)
+                        settingsPage = totalSettingsPages;
+                }
+                else if (KEY.Key == ConsoleKey.D || KEY.Key == ConsoleKey.RightArrow)
+                {
+                    settingsPage++;
+                    settingsCursor = 1;
+                    if (settingsPage > totalSettingsPages)
+                        settingsPage = 1;
+                }
+                else if (KEY.Key == ConsoleKey.Enter)
+                {
+                    settingSwitch();
+
+                    // Dev Note: Check dev configuration before issuing sound alert
+                    if (ProgramSettings.AllowBeep)
+                        Console.Beep();
+                }
+                else if (KEY.Key == ConsoleKey.Backspace || KEY.Key.ToString() == ConsoleKey.Escape.ToString())
+                {
+                    break;
+                }
+            }
+
+            Console.CursorVisible = true;
+
+            void writeSETTINGS()
+            {
+                preBuildTools.WriteLineColored($"\n'W' or '^' UP -- 'S' or 'v' DOWN -- 'A' or '<' Page Left -- 'D' or '>' Page Right\n'[ENTER]' or '[NUM PAD ENTER]' select -- '[ESCAPE]' or '[BACKSPACE]' Exit\n\n============================== SETTINGS ({settingsPage}/{totalSettingsPages}) ==============================\n", ConsoleColor.Cyan);
+
+                if (settingsPage == 1)
+                {
+                    curser(1);
+                    preBuildTools.WriteLineGreen($"{(ProgramSettings.AllowColors ? "Enabled " : "Disabled")} | Allow Colors in Output");
+
+                    curser(2);
+                    preBuildTools.WriteLineGreen($"{(ProgramSettings.AllowBeep ? "Enabled " : "Disabled")} | Allow Beep Sound Alerts");
+                }
+
+                preBuildTools.WriteLineColored("\n===============================================================================", ConsoleColor.Cyan);
+            }
+
+            void curser(int setting)
+            {
+                if (settingsCursor == setting)
+                    preBuildTools.WriteColored(">> ", ConsoleColor.Green);
+                else
+                    Console.Write("   ");
+            }
+
+            void settingSwitch()
+            {
+                if (settingsPage == 1)
+                {
+                    if (settingsCursor == 1)
+                    {
+                        ProgramSettings.AllowColors = !ProgramSettings.AllowColors;
+                    }
+                    else if (settingsCursor == 2)
+                    {
+                        ProgramSettings.AllowBeep = !ProgramSettings.AllowBeep;
+                    }
+                }
+
+                _AppSettings.ProgramSettings.Save();
+            }
         }
 
         public class ShowMediaMetadata
@@ -1286,6 +1428,11 @@ namespace Jelly_Software.Tools
                     public int EpisodeNumber { get; set; } = default;
                 }
             }
+        }
+
+        public class TxtFile
+        {
+            public static readonly string WelcomeMessage = "Version 1.0.6\nType 'Help' for more information.\nType 'Settings' to modify application settings.\nInsert TV Show Folder Path:";
         }
     }
 }
