@@ -4,7 +4,7 @@ using System;
 namespace Jelly_Software
 {
     public class _AppSettings
-    { 
+    {
         public static ProgramSettings ProgramSettings = null!;
 
         /// <summary>
