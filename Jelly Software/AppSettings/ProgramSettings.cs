@@ -14,14 +14,52 @@ namespace Jelly_Software.AppSettings
         /// <summary>
         /// Toggles console foreground color customization across the application.
         /// </summary>
-        public static bool AllowColors { get; set; } = true;
+        private bool _allowColors = true;
+        public bool AllowColors 
+        { 
+            get
+            {
+                return _allowColors;
+            }
+            set
+            {
+                _allowColors = value;
+            }
+        }
 
         /// <summary>
         /// Toggles console audio alert beeps (e.g. on error or critical initialization failure).
         /// </summary>
-        public static bool AllowBeep { get; set; } = true;
+        private bool _allowBeep = true;
+        public bool AllowBeep 
+        { 
+            get
+            {
+                return _allowBeep;
+            }
+            set
+            {
+                _allowBeep = value;
+            }
+        }
 
-        private static readonly string FilePath = "ProgramSettings.json";
+        /// <summary>
+        /// Toggles whether the initialization progress messages are displayed to the user during startup.
+        /// </summary>
+        private bool _allowShowInitializeProgress = true;
+        public bool AllowShowInitializeProgress 
+        { 
+            get
+            {
+                return _allowShowInitializeProgress;
+            }
+            set
+            {
+                _allowShowInitializeProgress = value;
+            }
+        }
+
+        private static readonly string FilePath = "settings\\ProgramSettings.json";
 
         /// <summary>
         /// Loads settings from the JSON configuration file, falling back to default values if missing or corrupt.
@@ -33,7 +71,10 @@ namespace Jelly_Software.AppSettings
                 try
                 {
                     string json = File.ReadAllText(FilePath);
-                    return JsonSerializer.Deserialize<ProgramSettings>(json) ?? new ProgramSettings();
+                    var settings = JsonSerializer.Deserialize<ProgramSettings>(json);
+                    if (settings != null)
+                        return settings;
+                    return new ProgramSettings();
                 }
                 catch
                 {

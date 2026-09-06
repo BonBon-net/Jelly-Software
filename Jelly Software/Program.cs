@@ -1,6 +1,7 @@
-﻿using System;
-using Jelly_Software.AppSettings;
+﻿using Jelly_Software.AppSettings;
 using Jelly_Software.Tools;
+using System;
+using System.Drawing;
 
 namespace Jelly_Software
 {
@@ -37,7 +38,7 @@ namespace Jelly_Software
             {
                 // 1. Clear the console and display startup message with color support
                 Console.Clear();
-                preBuildTools.WriteLineColored("[STAND BY] Initialization in progress...\n", ConsoleColor.Yellow);
+                preBuildTools.WriteLineColored("[STAND BY] Initialization in progress...\n", ConsoleColor.Yellow, true);
 
                 // 2. Load settings
                 if (_AppSettings.LoadSettings())
@@ -45,9 +46,11 @@ namespace Jelly_Software
 
                 // 3. Mark initialization as successful
                 initialized = true;
-                preBuildTools.WriteLineColored("\n[SUCCESS] Initialization complete!", ConsoleColor.Green);
+                preBuildTools.WriteLineColored("\n[SUCCESS] Initialization complete!", ConsoleColor.Green, true);
 
-                System.Threading.Thread.Sleep(2000); // Brief pause so the user can view success status
+                if (_AppSettings.ProgramSettings.AllowShowInitializeProgress) // <-- use the type name, not the instance
+                    System.Threading.Thread.Sleep(3500); // Brief pause so the user can view success status
+
                 Console.Clear();
                 Console.CursorVisible = true;
             }
@@ -56,7 +59,7 @@ namespace Jelly_Software
                 // Play a beep sound to indicate failure
                 Console.Beep();
                 // 4. Handle initialization failure
-                preBuildTools.WriteLineColored($"\n[INITIALIZE FAILED] : {ex.Message}", ConsoleColor.Red);
+                preBuildTools.WriteLineColored($"\n[INITIALIZE FAILED] : {ex.Message}", ConsoleColor.Red, true);
             }
         }
     }
