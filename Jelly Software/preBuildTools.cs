@@ -15,22 +15,9 @@ namespace Jelly_Software
         /// <summary>
         /// Helper to print colored console lines respecting user 'AllowColors' setting.
         /// </summary>
-        public static void WriteLineColored(string text, ConsoleColor color)
-        {
-            if (_AppSettings.ProgramSettings.AllowColors)
-            {
-                Console.ForegroundColor = color;
-                Console.WriteLine(text);
-                Console.ResetColor();
-            }
-            else
-            {
-                Console.WriteLine(text);
-            }
-        }
         public static void WriteLineColored(string text, ConsoleColor color, bool forceColor = false)
         {
-            if (forceColor || _AppSettings.ProgramSettings.AllowColors)
+            if (forceColor || _AppDatabase.ProgramSettings.AllowColors)
             {
                 Console.ForegroundColor = color;
                 Console.WriteLine(text);
@@ -47,7 +34,7 @@ namespace Jelly_Software
         /// </summary>
         public static void WriteColored(string text, ConsoleColor color)
         {
-            if (_AppSettings.ProgramSettings.AllowColors)
+            if (_AppDatabase.ProgramSettings.AllowColors)
             {
                 Console.ForegroundColor = color;
                 Console.Write(text);
@@ -84,7 +71,7 @@ namespace Jelly_Software
             else
             {
                 // Dev Note: Check dev configuration before issuing sound alert
-                if (_AppSettings.ProgramSettings.AllowBeep)
+                if (_AppDatabase.ProgramSettings.AllowBeep)
                     Console.Beep();
                 WriteLineColored($"[ERROR] Path does not exist: {path}", ConsoleColor.Red);
             }
@@ -183,7 +170,7 @@ namespace Jelly_Software
                         if (input.Length > 0)
                         {
                             // Dev Note: Check dev configuration before issuing sound alert
-                            if (_AppSettings.ProgramSettings.AllowBeep)
+                            if (_AppDatabase.ProgramSettings.AllowBeep)
                                 Console.Beep();
                             Console.WriteLine();
                             break;

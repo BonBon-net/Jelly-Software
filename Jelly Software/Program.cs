@@ -2,6 +2,8 @@
 using Jelly_Software.Tools;
 using System;
 using System.Drawing;
+using System.Reflection;
+using System.Text;
 
 namespace Jelly_Software
 {
@@ -41,14 +43,14 @@ namespace Jelly_Software
                 preBuildTools.WriteLineColored("[STAND BY] Initialization in progress...\n", ConsoleColor.Yellow, true);
 
                 // 2. Load settings
-                if (_AppSettings.LoadSettings())
+                if (_AppDatabase.LoadSettings())
                     throw new Exception("Setting loader returned a critical failure.");
 
                 // 3. Mark initialization as successful
                 initialized = true;
                 preBuildTools.WriteLineColored("\n[SUCCESS] Initialization complete!", ConsoleColor.Green, true);
 
-                if (_AppSettings.ProgramSettings.AllowShowInitializeProgress) // <-- use the type name, not the instance
+                if (_AppDatabase.ProgramSettings.AllowShowInitializeProgress) // <-- use the type name, not the instance
                     System.Threading.Thread.Sleep(3500); // Brief pause so the user can view success status
 
                 Console.Clear();

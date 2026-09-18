@@ -12,6 +12,7 @@ namespace Jelly_Software.AppSettings
         // Dev Note: Must be public properties with { get; set; } for System.Text.Json serialization
 
         /// <summary>
+        /// Property 1
         /// Toggles console foreground color customization across the application.
         /// </summary>
         private bool _allowColors = true;
@@ -19,15 +20,18 @@ namespace Jelly_Software.AppSettings
         { 
             get
             {
+                _AppDatabase.VerifyDatabaseDirectories();
                 return _allowColors;
             }
             set
             {
+                _AppDatabase.VerifyDatabaseDirectories();
                 _allowColors = value;
             }
         }
 
         /// <summary>
+        /// Property 2
         /// Toggles console audio alert beeps (e.g. on error or critical initialization failure).
         /// </summary>
         private bool _allowBeep = true;
@@ -35,15 +39,18 @@ namespace Jelly_Software.AppSettings
         { 
             get
             {
+                _AppDatabase.VerifyDatabaseDirectories();
                 return _allowBeep;
             }
             set
             {
+                _AppDatabase.VerifyDatabaseDirectories();
                 _allowBeep = value;
             }
         }
 
         /// <summary>
+        /// Property 3
         /// Toggles whether the initialization progress messages are displayed to the user during startup.
         /// </summary>
         private bool _allowShowInitializeProgress = true;
@@ -51,21 +58,27 @@ namespace Jelly_Software.AppSettings
         { 
             get
             {
+                _AppDatabase.VerifyDatabaseDirectories();
                 return _allowShowInitializeProgress;
             }
             set
             {
+                _AppDatabase.VerifyDatabaseDirectories();
                 _allowShowInitializeProgress = value;
             }
         }
 
-        private static readonly string FilePath = "settings\\ProgramSettings.json";
+        /// <summary>
+        /// Specifies the file path for the program settings JSON configuration file.
+        /// </summary>
+        private static readonly string FilePath = "Database\\Settings\\ProgramSettings.json";
 
         /// <summary>
         /// Loads settings from the JSON configuration file, falling back to default values if missing or corrupt.
         /// </summary>
         public static ProgramSettings Load()
         {
+            _AppDatabase.VerifyDatabaseDirectories();
             if (File.Exists(FilePath))
             {
                 try
@@ -94,6 +107,7 @@ namespace Jelly_Software.AppSettings
         /// </summary>
         public void Save()
         {
+            _AppDatabase.VerifyDatabaseDirectories();
             var options = new JsonSerializerOptions { WriteIndented = true };
             string json = JsonSerializer.Serialize(this, options);
             File.WriteAllText(FilePath, json);
