@@ -90,6 +90,25 @@ namespace Jelly_Software.AppDatabase.Settings
         }
 
         /// <summary>
+        /// Property 5
+        /// Specifies the application background color.
+        /// </summary>
+        private protected static ConsoleColor _backgroundColor = ConsoleColor.Black;
+        public ConsoleColor BackgroundColor
+        {
+            get
+            {
+                _AppDatabase.VerifyDatabaseDirectories();
+                return _backgroundColor;
+            }
+            set
+            {
+                _AppDatabase.VerifyDatabaseDirectories();
+                _backgroundColor = value;
+            }
+        }
+
+        /// <summary>
         /// Specifies the file path for the program settings JSON configuration file.
         /// </summary>
         public static readonly string FilePath = $"{_AppDatabase.SettingsDirectory}\\ProgramSettings.json";

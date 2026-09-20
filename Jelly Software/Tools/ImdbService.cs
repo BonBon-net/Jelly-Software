@@ -461,7 +461,7 @@ namespace Jelly_Software.Tools
                                 {
                                     Console.WriteLine();
                                     if (hasFileImdbIds)
-                                        preBuildTools.WriteLineColored("IMDb IDs found in files. Would you like to add a dash '-' between Episode Name & IMDb ID?", ConsoleColor.Green);
+                                        preBuildTools.WriteLineColored("IMDb IDs found in files. Would you like to add a dash '-' between Episode Name & IMDb ID?", ConsoleColor.DarkMagenta);
 
                                     question = new string[2] { "Yes, add dash '-' between Episode Name & IMDb ID", "No, don't add dash '-'" };
                                     charAnswers = new char[2] { 'Y', 'N' };
@@ -476,7 +476,7 @@ namespace Jelly_Software.Tools
 
                                 if (lastChance)
                                 {
-                                    ChanceFilesName(showMetadata, EditFiles, useEpisodeReleaseYear, allowEpisodeName, allowImdb, dashAfterReleaseYear, dashAfterSeasonEpisode, dashBeforeImdb, allowSeasonYear, allowEpisodeYear, dashBeforeReleaseYear);
+                                    ChanceFilesName(showMetadata, EditFiles, dashBeforeReleaseYear, allowEpisodeYear, useEpisodeReleaseYear, dashAfterReleaseYear, allowEpisodeName, dashAfterSeasonEpisode, allowImdb, dashBeforeImdb, allowSeasonYear);
                                 }
                                 else
                                 {
@@ -611,26 +611,43 @@ namespace Jelly_Software.Tools
             return allResults.OrderBy(r => r.Year).ToList();
         }
 
-        private static void ChanceFilesName(ShowMediaMetadata showMetadata, bool? EditFiles, bool? DashBeforeReleaseYear, bool? AllowEpisodeYear, bool? UseEpisodeReleaseYear, bool? DashAfterReleaseYear, bool? AllowEpisodeName, bool? DashAfterSeasonEpisode, bool? AllowImdb, bool? DashBeforeImdb, bool? AllowSeasonYear)
+        private static void ChanceFilesName(ShowMediaMetadata showMetadata, bool? EditFiles, bool? dashBeforeReleaseYear, bool? allowEpisodeYear, bool? useEpisodeReleaseYear, bool? dashAfterReleaseYear, bool? allowEpisodeName, bool? dashAfterSeasonEpisode, bool? allowImdb, bool? dashBeforeImdb, bool? allowSeasonYear)
         {
-            if (DashBeforeReleaseYear == null && AllowEpisodeYear == true)
-                throw new InvalidOperationException("");
-            else if (AllowEpisodeYear == null)
-                throw new InvalidOperationException("");
-            else if (UseEpisodeReleaseYear == null && AllowEpisodeYear == true)
-                throw new InvalidOperationException("");
-            else if (DashAfterReleaseYear == null && AllowEpisodeYear == true)
-                throw new InvalidOperationException("");
-            else if (AllowEpisodeName == null)
-                throw new InvalidOperationException("");
-            else if (DashAfterSeasonEpisode == null && AllowEpisodeName == true)
-                throw new InvalidOperationException("");
-            else if (AllowImdb == null)
-                throw new InvalidOperationException("");
-            else if (DashBeforeImdb == null && AllowImdb == true)
-                throw new InvalidOperationException("");
-            else if (AllowSeasonYear == null)
-                throw new InvalidOperationException("");
+            // 1. Verify primary season year configuration exists
+            if (allowSeasonYear == null)
+                throw new InvalidOperationException("Configuration missing: 'allow Season Year' cannot be null.");
+
+            // 2. Verify primary episode year configuration exists
+            else if (allowEpisodeYear == null)
+                throw new InvalidOperationException("Configuration missing: 'allow Episode Year' cannot be null.");
+
+            // 3. Verify sub-setting exists when episode year is enabled
+            else if (allowEpisodeYear == true && useEpisodeReleaseYear == null)
+                throw new InvalidOperationException("Configuration missing: 'use Episode Release Year' must be set when 'allow Episode Year' is enabled.");
+
+            // 4. Verify formatting rules exist when episode year is enabled
+            else if (allowEpisodeYear == true && dashBeforeReleaseYear == null)
+                throw new InvalidOperationException("Configuration missing: 'dash Before Release Year' must be set when 'allow Episode Year' is enabled.");
+
+            // 5. Verify formatting rules exist when episode year is enabled
+            else if (allowEpisodeYear == true && dashAfterReleaseYear == null)
+                throw new InvalidOperationException("Configuration missing: 'dash After Release Year' must be set when 'allow Episode Year' is enabled.");
+
+            // 6. Verify primary episode name configuration exists
+            else if (allowEpisodeName == null)
+                throw new InvalidOperationException("Configuration missing: 'allow Episode Name' cannot be null.");
+
+            // 7. Prevent execution if episode name is enabled but missing its dependent logic/settings
+            else if (allowEpisodeName == true)
+                throw new InvalidOperationException("Incomplete configuration: 'allow Episode Name' is enabled, but its required sub-settings are missing or not implemented.");
+
+            // 8. Verify primary IMDb configuration exists
+            else if (allowImdb == null)
+                throw new InvalidOperationException("Configuration missing: 'allow IMDb' cannot be null.");
+
+            // 9. Prevent execution if IMDb is enabled but missing its dependent logic/settings
+            else if (allowImdb == true)
+                throw new InvalidOperationException("Incomplete configuration: 'allow IMDb' is enabled, but its required sub-settings are missing or not implemented.");
 
             List<FileInfo> files = new List<FileInfo>();
             List<DirectoryInfo> directories = new List<DirectoryInfo>();
@@ -641,8 +658,7 @@ namespace Jelly_Software.Tools
 
             directories.AddRange(new DirectoryInfo(showMetadata.FolderPath).GetDirectories());
             List<(string FolderName, int SeasonNum)> seasonFoldersList = new List<(string, int)>();
-            int seasonChangedCount = 0;
-            int seasonSkippedCount = 0;
+
             for (int i = 0; i < directories.Count;)
             {
                 string folderName = directories[i].Name;
@@ -667,18 +683,16 @@ namespace Jelly_Software.Tools
                         errorMessages.Add($"[ERROR] Metadata for Season {parsedSeasonNum} not found. Skipping folder.");
                         preBuildTools.WriteLineColored($"\n{errorMessages.Last()}", ConsoleColor.Red);
                         directories.RemoveAt(i);
-                        seasonSkippedCount++;
                         continue;
                     }
 
                     string seasonFolderFormat = $"Season {parsedSeasonNum:D2}";
-                    if (AllowSeasonYear == true)
+                    if (allowSeasonYear == true)
                         seasonFolderFormat += $" ({showMetadata.Seasons[metaSeasonIndex].SeasonYear})";
                     seasonFoldersList.Add((seasonFolderFormat, parsedSeasonNum));
 
                     if (directories[i].FullName.Split("\\").Last() != seasonFolderFormat)
                     {
-                        seasonChangedCount++;
                         preBuildTools.RenameFileOrFolder(directories[i].FullName, $"{preBuildTools.GoToParentDirectory(directories[i].FullName)}\\{seasonFolderFormat}");
                     }
 
@@ -692,13 +706,10 @@ namespace Jelly_Software.Tools
 
                     preBuildTools.WriteLineColored($"Warning: Folder name '{folderName}' does not match season format. Skipping.", ConsoleColor.Yellow);
                     directories.RemoveAt(i);
-                    seasonSkippedCount++;
                     continue;
                 }
             }
 
-            preBuildTools.WriteLineColored($"\nTotal Folders: {seasonFoldersList.Count + seasonSkippedCount}\nTotal Seasons: {seasonFoldersList.Count}\nChanged: {seasonChangedCount}\nSkipped: {seasonSkippedCount}", ConsoleColor.Green);
-            int episodeSkippedCount = 0;
             string unusedFolderPath = $"{showMetadata.FolderPath}\\Unused Episodes";
 
             for (int i = 0; i < seasonFoldersList.Count; i++)
@@ -711,17 +722,14 @@ namespace Jelly_Software.Tools
                 seasonFiles.AddRange(new DirectoryInfo($"{showMetadata.FolderPath}\\{currentFolderName}").GetFiles());
                 var episodeGroups = new Dictionary<string, List<(FileInfo OriginalFile, string Extension, int EpNum, string ExtractedImdbId)>>();
 
-                Console.WriteLine();
+                preBuildTools.WriteLineColored($"\n         Processing files in '{currentFolderName}'...", ConsoleColor.DarkCyan);
                 for (int j = 0; j < seasonFiles.Count; j++)
                 {
                     string fileName = seasonFiles[j].Name;
                     string fileExtension = fileName.Split('.').Last().ToLower();
 
                     if (fileExtension != "mkv" && fileExtension != "mp4" && fileExtension != "avi")
-                    {
-                        episodeSkippedCount++;
                         continue;
-                    }
 
                     string nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
 
@@ -766,10 +774,6 @@ namespace Jelly_Software.Tools
                             episodeGroups[formattedEpisodeString] = new List<(FileInfo, string, int, string)>();
                         episodeGroups[formattedEpisodeString].Add((seasonFiles[j], fileExtension, episode1Num, extractedImdbId));
                     }
-                    else
-                    {
-                        episodeSkippedCount++;
-                    }
                 }
 
                 foreach (var group in episodeGroups)
@@ -788,23 +792,22 @@ namespace Jelly_Software.Tools
 
                         errorMessages.Add($"[ERROR] Skipping '{epString}': Metadata only has {showMetadata.Seasons[metaSeasonIndex].Episodes.Count} episodes for Season {currentSeasonNum}.");
                         preBuildTools.WriteLineColored($"\n{errorMessages.Last()}", ConsoleColor.Red);
-                        episodeSkippedCount += filesInGroup.Count;
                         continue;
                     }
 
                     string baseNewName = showMetadata.ShowTitle;
-                    if (AllowEpisodeYear == true)
+                    if (allowEpisodeYear == true)
                     {
-                        if (UseEpisodeReleaseYear == true)
+                        if (useEpisodeReleaseYear == true)
                         {
-                            if (DashAfterReleaseYear == true)
+                            if (dashAfterReleaseYear == true)
                                 baseNewName += $" ({showMetadata.Seasons[metaSeasonIndex].Episodes[epIndex].EpisodeYear}) -";
                             else
                                 baseNewName += $" ({showMetadata.Seasons[metaSeasonIndex].Episodes[epIndex].EpisodeYear})";
                         }
                         else
                         {
-                            if (DashAfterReleaseYear == true)
+                            if (dashAfterReleaseYear == true)
                                 baseNewName += $" ({showMetadata.ShowYear}) -";
                             else
                                 baseNewName += $" ({showMetadata.ShowYear})";
@@ -812,9 +815,9 @@ namespace Jelly_Software.Tools
                     }
 
                     baseNewName += $" {epString}";
-                    if (AllowEpisodeName == true)
+                    if (allowEpisodeName == true)
                     {
-                        if (DashAfterSeasonEpisode == true)
+                        if (dashAfterSeasonEpisode == true)
                             baseNewName += " -";
                         string rawTitle = showMetadata.Seasons[metaSeasonIndex].Episodes[epIndex].EpisodeTitle;
                         string cleanTitle = Regex.Replace(rawTitle, @"[<>:""/\\|?*]", string.Empty);
@@ -822,21 +825,21 @@ namespace Jelly_Software.Tools
                         baseNewName += $" {cleanTitle}";
                     }
 
-                    if (AllowImdb == true)
+                    if (allowImdb == true)
                     {
                         string apiImdbId = showMetadata.Seasons[metaSeasonIndex].Episodes[epIndex].EpisodeImdbId;
                         string finalImdbId = !string.IsNullOrEmpty(apiImdbId) ? apiImdbId : extractedImdbId;
 
                         if (!string.IsNullOrEmpty(finalImdbId))
                         {
-                            if (DashBeforeImdb == true)
+                            if (dashBeforeImdb == true)
                                 baseNewName += $" - [imdbid-{finalImdbId}]";
                             else
                                 baseNewName += $" [imdbid-{finalImdbId}]";
                         }
                         else
                         {
-                            if (DashBeforeImdb == true)
+                            if (dashBeforeImdb == true)
                                 baseNewName += " - [imdbid-]";
                             else
                                 baseNewName += $" [imdbid-]";
@@ -844,7 +847,7 @@ namespace Jelly_Software.Tools
                     }
                     else if (!string.IsNullOrEmpty(extractedImdbId))
                     {
-                        if (DashBeforeImdb == true)
+                        if (dashBeforeImdb == true)
                             baseNewName += $" - [imdbid-{extractedImdbId}]";
                         else
                             baseNewName += $" [imdbid-{extractedImdbId}]";
@@ -920,7 +923,6 @@ namespace Jelly_Software.Tools
                                 string unusedDestination = $"{unusedFolderPath}\\{fileData.OriginalFile.Name}";
                                 preBuildTools.RenameFileOrFolder(fileData.OriginalFile.FullName, unusedDestination);
                             }
-                            episodeSkippedCount += filesInGroup.Count;
                             preBuildTools.WriteLineColored($"Moved all files for {epString} to 'Unused Episodes'.", ConsoleColor.Green);
                         }
                         else
@@ -943,7 +945,6 @@ namespace Jelly_Software.Tools
                                 }
                             }
 
-                            episodeSkippedCount += (filesInGroup.Count - 1);
                             preBuildTools.WriteLineColored($"Kept option {choice}. Moved remaining files to 'Unused Episodes'.", ConsoleColor.Green);
                         }
                     }
@@ -981,13 +982,9 @@ namespace Jelly_Software.Tools
                     Console.Beep();
 
                 if (showResponse.StatusCode == HttpStatusCode.NotFound)
-                {
                     throw new ArgumentException($"No show found for IMDb ID: {imdbId}. Please check the IMDb ID and try again.");
-                }
                 else
-                {
                     throw new ArgumentException($"Failed to fetch data from TVMaze. Status Code: {showResponse.StatusCode}");
-                }
             }
 
             string showJson = await showResponse.Content.ReadAsStringAsync();
@@ -995,14 +992,10 @@ namespace Jelly_Software.Tools
             var root = showDoc.RootElement;
 
             if (root.TryGetProperty("name", out var nameProp))
-            {
                 show.ShowTitle = nameProp.GetString() ?? string.Empty;
-            }
 
             if (!root.TryGetProperty("id", out var idProp))
-            {
                 return show;
-            }
 
             int showId = idProp.GetInt32();
 
@@ -1010,18 +1003,14 @@ namespace Jelly_Software.Tools
             HttpResponseMessage episodesResponse = await GetWithRateLimitRetryAsync(episodesUrl);
 
             if (!episodesResponse.IsSuccessStatusCode)
-            {
                 return show;
-            }
 
             string episodesJson = await episodesResponse.Content.ReadAsStringAsync();
             using var episodesDoc = JsonDocument.Parse(episodesJson);
             var episodesArray = episodesDoc.RootElement;
 
             if (episodesArray.ValueKind != JsonValueKind.Array)
-            {
                 return show;
-            }
 
             var seasonMap = new Dictionary<int, ShowMediaMetadata.SeasonMediaMetadata>();
 
@@ -1112,7 +1101,7 @@ namespace Jelly_Software.Tools
                         delayMs += (int)response.Headers.RetryAfter.Delta.Value.TotalMilliseconds * 5;
                     }
 
-                    preBuildTools.Countdown(delayMs, false);
+                    preBuildTools.Countdown(delayMs, false, "Rate limit reached (429). Retrying...");
 
                     preBuildTools.WriteColored($"\rRate limit reached (429). Retrying in: 0ms".PadRight(95), ConsoleColor.Yellow);
                     // Dev Note: Check dev configuration before issuing sound alert
@@ -1361,7 +1350,7 @@ namespace Jelly_Software.Tools
 
         public class TxtFile
         {
-            public static readonly string WelcomeMessage = "Version 1.0.6.1\nType 'Help' for more information.\nType 'Settings' to modify application settings.\nInsert TV Show Folder Path:";
+            public static readonly string WelcomeMessage = "Version 1.0.7 [BETA]\nType 'Help' for more information.\nType 'Settings' to modify application settings.\nInsert TV Show Folder Path:";
         }
     }
 }

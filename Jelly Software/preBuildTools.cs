@@ -13,15 +13,45 @@ namespace Jelly_Software
     public static class preBuildTools
     {
         /// <summary>
+        /// Prevents text from disappearing by toggling between light and dark variants 
+        /// of a color if the foreground and background match.
+        /// </summary>
+        public static ConsoleColor EnsureContrast(ConsoleColor textColor)
+        {
+            // ... (keep the rest of the method exactly the same)
+            // Fallback to the current console background color
+            ConsoleColor bgColor = Console.BackgroundColor;
+
+            // Use the saved setting only if the settings are fully initialized
+            if (_AppDatabase.ProgramSettings != null)
+            {
+                bgColor = _AppDatabase.ProgramSettings.BackgroundColor;
+            }
+
+            if (textColor == bgColor)
+            {
+                int colorValue = (int)textColor;
+                // Shift by 8 to toggle between the light and dark version of the color
+                return (ConsoleColor)(colorValue > 7 ? colorValue - 8 : colorValue + 8);
+            }
+
+            return textColor;
+        }
+
+        /// <summary>
         /// Helper to print colored console lines respecting user 'AllowColors' setting.
         /// </summary>
         public static void WriteLineColored(string text, ConsoleColor color, bool forceColor = false)
         {
             if (forceColor || _AppDatabase.ProgramSettings.AllowColors)
             {
-                Console.ForegroundColor = color;
+                ConsoleColor previousForeground = Console.ForegroundColor;
+
+                // Route the requested color through the contrast check
+                Console.ForegroundColor = EnsureContrast(color);
                 Console.WriteLine(text);
-                Console.ResetColor();
+
+                Console.ForegroundColor = previousForeground;
             }
             else
             {
@@ -36,9 +66,13 @@ namespace Jelly_Software
         {
             if (_AppDatabase.ProgramSettings.AllowColors)
             {
-                Console.ForegroundColor = color;
+                ConsoleColor previousForeground = Console.ForegroundColor;
+
+                // Route the requested color through the contrast check
+                Console.ForegroundColor = EnsureContrast(color);
                 Console.Write(text);
-                Console.ResetColor();
+
+                Console.ForegroundColor = previousForeground;
             }
             else
             {
@@ -213,12 +247,14 @@ namespace Jelly_Software
             return userInput;
         }
 
-        public static void Countdown(int delayMs, bool allowBreak)
+        public static void Countdown(int delayMs, bool allowManualBreak, string customMessage = default!)
         {
             Console.CursorVisible = false;
 
-            if (allowBreak)
+            if (allowManualBreak)
                 WriteLineColored($"[COUNTDOWN] Press [ESC], [ENTER], [SPACEBAR], or [BACKSPACE] to break the countdown.", ConsoleColor.Yellow);
+            if (!string.IsNullOrEmpty(customMessage?.Trim()))
+                WriteLineColored(customMessage.Trim(), ConsoleColor.Cyan);
             // Run the countdown task unconditionally. The break logic is handled inside.
             waitCountdown(delayMs).Wait();
 
@@ -236,7 +272,7 @@ namespace Jelly_Software
                         break;
 
                     // If breaking is allowed, check the input buffer for the required keys
-                    if (allowBreak)
+                    if (allowManualBreak)
                     {
                         bool breakRequested = false;
 

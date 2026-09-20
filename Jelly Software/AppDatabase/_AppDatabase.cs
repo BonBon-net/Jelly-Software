@@ -41,22 +41,20 @@ namespace Jelly_Software.AppSettings
             if (!Directory.Exists("Database\\Settings"))
                 Directory.CreateDirectory("Database\\Settings");
 
-            int settingsCount = 12; // Total settings tracked during initialization
+            int Count = 2; // Total settings tracked during initialization
 
             try
             {
                 ProgramSettings = ProgramSettings.Load();
 
                 // Dev Note: Colored output during startup steps
-                preBuildTools.WriteLineColored($"[LOADED] (1/{settingsCount}) Allow Colors: {ProgramSettings.AllowColors}", ConsoleColor.Cyan, true);
-                preBuildTools.WriteLineColored($"[LOADED] (2/{settingsCount}) Allow Sound Beep: {ProgramSettings.AllowBeep}", ConsoleColor.Cyan, true);
-                preBuildTools.WriteLineColored($"[LOADED] (3/{settingsCount}) Show Initialization Progress: {ProgramSettings.AllowShowInitializeProgress}", ConsoleColor.Cyan, true);
+                preBuildTools.WriteLineColored($"[LOADED] (1/{Count}) Successfully loaded program settings", ConsoleColor.Cyan, true);
             }
             catch (Exception ex)
             {
                 // Play a beep sound to indicate failure
                 Console.Beep();
-                preBuildTools.WriteLineColored($"[CRITICAL ERROR] Failed to load program settings:\n{ex.Message}", ConsoleColor.Red, true);
+                preBuildTools.WriteLineColored($"[CRITICAL ERROR] (1/{Count}) Failed to load program settings:\n{ex.Message}", ConsoleColor.DarkRed, true);
                 return true;
             }
 
@@ -65,20 +63,13 @@ namespace Jelly_Software.AppSettings
                 ImdbServiceSettings = ImdbServiceSettings.Load();
 
                 // Dev Note: Colored output during startup steps
-                preBuildTools.WriteLineColored($"[LOADED] (4/{settingsCount}) Use Episode Release Year: {ImdbServiceSettings.UseEpisodeReleaseYear}", ConsoleColor.Cyan, true);
-                preBuildTools.WriteLineColored($"[LOADED] (5/{settingsCount}) Dash After Release Year: {ImdbServiceSettings.DashAfterReleaseYear}", ConsoleColor.Cyan, true);
-                preBuildTools.WriteLineColored($"[LOADED] (6/{settingsCount}) Allow Episode Name: {ImdbServiceSettings.AllowEpisodeName}", ConsoleColor.Cyan, true);
-                preBuildTools.WriteLineColored($"[LOADED] (7/{settingsCount}) Dash After Season Episode: {ImdbServiceSettings.DashAfterSeasonEpisode}", ConsoleColor.Cyan, true);
-                preBuildTools.WriteLineColored($"[LOADED] (8/{settingsCount}) Allow IMDb: {ImdbServiceSettings.AllowImdb}", ConsoleColor.Cyan, true);
-                preBuildTools.WriteLineColored($"[LOADED] (9/{settingsCount}) Dash Before IMDb: {ImdbServiceSettings.DashBeforeImdb}", ConsoleColor.Cyan, true);
-                preBuildTools.WriteLineColored($"[LOADED] (10/{settingsCount}) Allow Season Year: {ImdbServiceSettings.AllowSeasonYear}", ConsoleColor.Cyan, true);
-                preBuildTools.WriteLineColored($"[LOADED] (11/{settingsCount}) Allow Episode Year: {ImdbServiceSettings.AllowEpisodeYear}", ConsoleColor.Cyan, true);
+                preBuildTools.WriteLineColored($"[LOADED] (2/{Count}) Successfully loaded IMDb service settings", ConsoleColor.Cyan, true);
             }
             catch (Exception ex)
             {
                 // Play a beep sound to indicate failure
                 Console.Beep();
-                preBuildTools.WriteLineColored($"[CRITICAL ERROR] Failed to load IMDb service settings:\n{ex.Message}", ConsoleColor.Red, true);
+                preBuildTools.WriteLineColored($"[CRITICAL ERROR] (2/{Count}) Failed to load IMDb service settings:\n{ex.Message}", ConsoleColor.DarkRed, true);
                 return true;
             }
 
@@ -95,10 +86,10 @@ namespace Jelly_Software.AppSettings
             // Updated count to account for AllowColors and AllowBeep
             int totalSettings = properties[settingsPage - 1].Length;
             int totalSettingsPages = properties.Count;
-
             while (true)
             {
-
+                Console.BackgroundColor = _AppDatabase.ProgramSettings.BackgroundColor;
+                Console.ForegroundColor = preBuildTools.EnsureContrast(ConsoleColor.Gray);
                 Console.Clear();
 
                 preBuildTools.WriteLineColored(TxtFile.WelcomeMessage, ConsoleColor.Green);
@@ -157,7 +148,7 @@ namespace Jelly_Software.AppSettings
 
             void writeSETTINGS()
             {
-                preBuildTools.WriteLineColored($"\n'W' or '^' UP -- 'S' or 'v' DOWN -- 'A' or '<' Page Left -- 'D' or '>' Page Right\n'[ENTER]' or '[NUM PAD ENTER]' select -- '[ESCAPE]' or '[BACKSPACE]' Exit\n\n============================== SETTINGS ({settingsPage}/{totalSettingsPages}) ==============================\n", ConsoleColor.Cyan);
+                preBuildTools.WriteLineColored($"\n'W' or '^' UP -- 'S' or 'v' DOWN -- 'A' or '<' Page Left -- 'D' or '>' Page Right\n'[ENTER]' or '[NUM PAD ENTER]' select -- '[ESCAPE]' or '[BACKSPACE]' Exit\n'[N]' or '[M]' adjust value\n\n============================== SETTINGS ({settingsPage}/{totalSettingsPages}) ==============================\n", ConsoleColor.Cyan);
 
                 writeSETTINGSPage();
 
@@ -188,6 +179,26 @@ namespace Jelly_Software.AppSettings
                         _AppDatabase.ProgramSettings.InitializeProgressTimer -= 5000;
                     else if (settingsCursor == 4 && key == ConsoleKey.Enter)
                         _AppDatabase.ProgramSettings.InitializeProgressTimer = 15000;
+                    // Add this below the existing else if (settingsCursor == 4...) blocks
+                    else if (settingsCursor == 5)
+                    {
+                        if (key == ConsoleKey.M)
+                        {
+                            int nextColor = (int)_AppDatabase.ProgramSettings.BackgroundColor + 1;
+                            _AppDatabase.ProgramSettings.BackgroundColor = nextColor > 15 ? (ConsoleColor)0 : (ConsoleColor)nextColor;
+                        }
+                        else if (key == ConsoleKey.N)
+                        {
+                            int prevColor = (int)_AppDatabase.ProgramSettings.BackgroundColor - 1;
+                            _AppDatabase.ProgramSettings.BackgroundColor = prevColor < 0 ? (ConsoleColor)15 : (ConsoleColor)prevColor;
+                        }
+                        else if (key == ConsoleKey.Enter)
+                        {
+                            _AppDatabase.ProgramSettings.BackgroundColor = ConsoleColor.Black;
+                        }
+
+                        _AppDatabase.ProgramSettings.Save();
+                    }
 
                     _AppDatabase.ProgramSettings.Save();
                 }
@@ -314,6 +325,11 @@ namespace Jelly_Software.AppSettings
 
                     // PadRight(10) ensures the string is always 10 characters wide before the " |"
                     preBuildTools.WriteLineColored($"{formattedTime.PadRight(9)}| Initialization Progress Timer", ConsoleColor.Green);
+
+                    // Add this below curser(4) block
+                    curser(5);
+                    string bgColorName = _AppDatabase.ProgramSettings.BackgroundColor.ToString();
+                    preBuildTools.WriteLineColored($"{bgColorName.PadRight(9)}| Application Background Color", ConsoleColor.Green);
                 }
                 else if (settingsPage == 2)
                 {

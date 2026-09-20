@@ -51,8 +51,12 @@ namespace Jelly_Software
                 preBuildTools.WriteLineColored("\n[SUCCESS] Initialization complete!", ConsoleColor.Green, true);
 
                 Console.WriteLine();
-                if (_AppDatabase.ProgramSettings.AllowShowInitializeProgress) // <-- use the type name, not the instance
+                if (_AppDatabase.ProgramSettings.AllowShowInitializeProgress)
                     preBuildTools.Countdown(_AppDatabase.ProgramSettings.InitializeProgressTimer, true);
+
+                // --> Apply the global background and safe typing color
+                Console.BackgroundColor = _AppDatabase.ProgramSettings.BackgroundColor;
+                Console.ForegroundColor = preBuildTools.EnsureContrast(ConsoleColor.Gray);
                 Console.Clear();
                 Console.CursorVisible = true;
             }
