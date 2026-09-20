@@ -1,11 +1,12 @@
-﻿using System;
+﻿using Jelly_Software.AppSettings;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace Jelly_Software.AppSettings
+namespace Jelly_Software.AppDatabase.Settings
 {
     public class ImdbServiceSettings
     {
@@ -13,7 +14,7 @@ namespace Jelly_Software.AppSettings
         /// Property 1
         /// Toggles whether a dash is placed before the release year.
         /// </summary>
-        private bool? _DashBeforeReleaseYear = null;
+        private protected static bool? _DashBeforeReleaseYear = null;
         public bool? DashBeforeReleaseYear
         {
             get
@@ -32,7 +33,7 @@ namespace Jelly_Software.AppSettings
         /// Property 2
         /// Toggles whether episode years are displayed.
         /// </summary>
-        private bool? _allowEpisodeYear = null;
+        private protected static bool? _allowEpisodeYear = null;
         public bool? AllowEpisodeYear
         {
             get
@@ -51,7 +52,7 @@ namespace Jelly_Software.AppSettings
         /// Property 3
         /// Toggles whether to use the episode's release year.
         /// </summary>
-        private bool? _useEpisodeReleaseYear = null;
+        private protected static bool? _useEpisodeReleaseYear = null;
         public bool? UseEpisodeReleaseYear
         { 
             get
@@ -70,7 +71,7 @@ namespace Jelly_Software.AppSettings
         /// Property 4
         /// Toggles whether a dash is placed after the release year.
         /// </summary>
-        private bool? _dashAfterReleaseYear = null;
+        private protected static bool? _dashAfterReleaseYear = null;
         public bool? DashAfterReleaseYear
         {
             get
@@ -89,7 +90,7 @@ namespace Jelly_Software.AppSettings
         /// Property 5
         /// Toggles whether episode names are displayed.
         /// </summary>
-        private bool? _allowEpisodeName = null;
+        private protected static bool? _allowEpisodeName = null;
         public bool? AllowEpisodeName
         {
             get
@@ -108,7 +109,7 @@ namespace Jelly_Software.AppSettings
         /// Property 6
         /// Toggles whether a dash is placed after the season and episode numbers.
         /// </summary>
-        private bool? _dashAfterSeasonEpisode = null;
+        private protected static bool? _dashAfterSeasonEpisode = null;
         public bool? DashAfterSeasonEpisode
         {
             get
@@ -127,7 +128,7 @@ namespace Jelly_Software.AppSettings
         /// Property 7
         /// Toggles whether IMDB information is displayed.
         /// </summary>
-        private bool? _allowImdb = null;
+        private protected static bool? _allowImdb = null;
         public bool? AllowImdb
         {
             get
@@ -146,7 +147,7 @@ namespace Jelly_Software.AppSettings
         /// Property 8
         /// Toggles whether a dash is placed before IMDB information.
         /// </summary>
-        private bool? _dashBeforeImdb = null;
+        private protected static bool? _dashBeforeImdb = null;
         public bool? DashBeforeImdb
         {
             get
@@ -165,7 +166,7 @@ namespace Jelly_Software.AppSettings
         /// Property 9
         /// Toggles whether season and year information is displayed.
         /// </summary>
-        private bool? _allowSeasonYear = null;
+        private protected static bool? _allowSeasonYear = null;
         public bool? AllowSeasonYear
         {
             get
@@ -183,7 +184,7 @@ namespace Jelly_Software.AppSettings
         /// <summary>
         /// Specifies the file path for the IMDB service settings JSON configuration file.
         /// </summary>
-        private static readonly string FilePath = "Database\\Settings\\ImdbServiceSettings.json";
+        public static readonly string FilePath = $"{_AppDatabase.SettingsDirectory}\\ImdbServiceSettings.json";
 
         /// <summary>
         /// Loads settings from the JSON configuration file, falling back to default values if missing or corrupt.

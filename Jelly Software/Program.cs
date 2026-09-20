@@ -50,9 +50,9 @@ namespace Jelly_Software
                 initialized = true;
                 preBuildTools.WriteLineColored("\n[SUCCESS] Initialization complete!", ConsoleColor.Green, true);
 
+                Console.WriteLine();
                 if (_AppDatabase.ProgramSettings.AllowShowInitializeProgress) // <-- use the type name, not the instance
-                    System.Threading.Thread.Sleep(3500); // Brief pause so the user can view success status
-
+                    preBuildTools.Countdown(_AppDatabase.ProgramSettings.InitializeProgressTimer, true);
                 Console.Clear();
                 Console.CursorVisible = true;
             }

@@ -46,12 +46,6 @@ namespace Jelly_Software
             }
         }
 
-        // Helper method to print text in Green
-        public static void WriteLineGreen(string text = "")
-        {
-            WriteLineColored(text, ConsoleColor.Green);
-        }
-
         public static void RenameFileOrFolder(string oldPath, string newPath)
         {
             string path = oldPath;
@@ -114,14 +108,24 @@ namespace Jelly_Software
 
         public static void ClearConsoleLines(int lineCount)
         {
-            for (int i = 0; i < lineCount; i++)
+            int currentTop = Console.CursorTop;
+
+            for (int i = 1; i <= lineCount; i++)
             {
-                Console.SetCursorPosition(0, Console.CursorTop - 1);
-                Console.Write(new string(' ', Console.WindowWidth));
+                int targetTop = currentTop - i;
+                if (targetTop < 0) break;
+
+                Console.SetCursorPosition(0, targetTop);
+                // WindowWidth - 1 prevents auto-wrapping to the next row
+                Console.Write(new string(' ', Console.WindowWidth - 1));
             }
-            Console.SetCursorPosition(0, Console.CursorTop);
+
+            // Reset cursor to the top of the cleared block
+            int resetTop = Math.Max(0, currentTop - lineCount);
+            Console.SetCursorPosition(0, resetTop);
         }
 
+        //","explanation":"Avoid ArgumentOutOfRangeException by not setting cursor to a negative top; clear current line when CursorTop is 0."}`
         public static bool GetUserConfirmation(string[] question, char[] charAnswers, string[] warnings)
         {
             if (question.Length != 2)
@@ -155,8 +159,8 @@ namespace Jelly_Software
                     }
                 }
 
-                WriteLineGreen($"[{charAnswers.First()}] {question.First()}");
-                WriteLineGreen($"[{charAnswers.Last()}] {question.Last()}");
+                WriteLineColored($"[{charAnswers.First()}] {question.First()}", ConsoleColor.Green);
+                WriteLineColored($"[{charAnswers.Last()}] {question.Last()}", ConsoleColor.Green);
 
                 WriteColored("> ", ConsoleColor.Green);
 
@@ -207,6 +211,64 @@ namespace Jelly_Software
                 ClearConsoleLines(question.Length + warnings.Length);
             }
             return userInput;
+        }
+
+        public static void Countdown(int delayMs, bool allowBreak)
+        {
+            Console.CursorVisible = false;
+
+            if (allowBreak)
+                WriteLineColored($"[COUNTDOWN] Press [ESC], [ENTER], [SPACEBAR], or [BACKSPACE] to break the countdown.", ConsoleColor.Yellow);
+            // Run the countdown task unconditionally. The break logic is handled inside.
+            waitCountdown(delayMs).Wait();
+
+            Console.CursorVisible = true;
+
+            async Task waitCountdown(int delayMsCountdown)
+            {
+                DateTime targetTime = DateTime.UtcNow.AddMilliseconds(delayMsCountdown);
+
+                while (true)
+                {
+                    TimeSpan remaining = targetTime - DateTime.UtcNow;
+
+                    if (remaining.TotalMilliseconds <= 0)
+                        break;
+
+                    // If breaking is allowed, check the input buffer for the required keys
+                    if (allowBreak)
+                    {
+                        bool breakRequested = false;
+
+                        // Read all available keys in the buffer to prevent lag
+                        while (Console.KeyAvailable)
+                        {
+                            // intercept: true prevents the typed key from rendering on the screen
+                            ConsoleKey key = Console.ReadKey(intercept: true).Key;
+                            if (key == ConsoleKey.Escape || key == ConsoleKey.Enter || key == ConsoleKey.Spacebar || key == ConsoleKey.Backspace)
+                            {
+                                breakRequested = true;
+                                break; // Breaks the inner key-reading loop
+                            }
+                        }
+
+                        if (breakRequested)
+                            break; // Breaks the outer countdown loop entirely
+                    }
+
+                    string formattedTime = "";
+                    if (remaining.Days > 0) formattedTime += $"{remaining.Days}d ";
+                    if (remaining.Days > 0 || remaining.Hours > 0) formattedTime += $"{remaining.Hours}h ";
+                    if (remaining.Days > 0 || remaining.Hours > 0 || remaining.Minutes > 0) formattedTime += $"{remaining.Minutes}m ";
+                    if (remaining.Days > 0 || remaining.Hours > 0 || remaining.Minutes > 0 || remaining.Seconds > 0) formattedTime += $"{remaining.Seconds}s ";
+                    formattedTime += $"{remaining.Milliseconds}ms";
+
+                    ClearConsoleLines(0);
+                    WriteColored($"[COUNTDOWN] Remaining time: {formattedTime}", ConsoleColor.Cyan);
+
+                    await Task.Delay(15);
+                }
+            }
         }
     }
 }

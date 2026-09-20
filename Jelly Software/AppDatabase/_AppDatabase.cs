@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Jelly_Software.AppDatabase.Settings;
+using System;
 using System.Reflection;
 using static Jelly_Software.Tools.ImdbService;
 
@@ -6,6 +7,12 @@ namespace Jelly_Software.AppSettings
 {
     public class _AppDatabase
     {
+        public static readonly string DatabaseDirectory = "Database";
+        public static readonly string SettingsDirectory = $"{DatabaseDirectory}\\Settings";
+
+        /// <summary>
+        /// A list of PropertyInfo arrays, each representing the public properties of a settings class. This is used to dynamically access and manipulate settings during runtime.
+        /// </summary>
         private protected static List<PropertyInfo[]> properties = new();
         private _AppDatabase()
         {
@@ -38,7 +45,7 @@ namespace Jelly_Software.AppSettings
 
             try
             {
-                ProgramSettings = AppSettings.ProgramSettings.Load();
+                ProgramSettings = ProgramSettings.Load();
 
                 // Dev Note: Colored output during startup steps
                 preBuildTools.WriteLineColored($"[LOADED] (1/{settingsCount}) Allow Colors: {ProgramSettings.AllowColors}", ConsoleColor.Cyan, true);
@@ -55,7 +62,7 @@ namespace Jelly_Software.AppSettings
 
             try
             {
-                ImdbServiceSettings = AppSettings.ImdbServiceSettings.Load();
+                ImdbServiceSettings = ImdbServiceSettings.Load();
 
                 // Dev Note: Colored output during startup steps
                 preBuildTools.WriteLineColored($"[LOADED] (4/{settingsCount}) Use Episode Release Year: {ImdbServiceSettings.UseEpisodeReleaseYear}", ConsoleColor.Cyan, true);
@@ -94,7 +101,7 @@ namespace Jelly_Software.AppSettings
 
                 Console.Clear();
 
-                preBuildTools.WriteLineGreen(TxtFile.WelcomeMessage);
+                preBuildTools.WriteLineColored(TxtFile.WelcomeMessage, ConsoleColor.Green);
                 preBuildTools.WriteColored("> ", ConsoleColor.Green);
                 Console.WriteLine(input);
 
@@ -130,9 +137,9 @@ namespace Jelly_Software.AppSettings
                         settingsPage = 1;
                     totalSettings = properties[settingsPage - 1].Length;
                 }
-                else if (KEY.Key == ConsoleKey.Enter)
+                else if (KEY.Key == ConsoleKey.Enter || KEY.Key == ConsoleKey.N || KEY.Key == ConsoleKey.M)
                 {
-                    settingSwitch();
+                    settingSwitch(KEY.Key);
                     totalSettings = properties[settingsPage - 1].Length;
                     // Dev Note: Check dev configuration before issuing sound alert
                     if (_AppDatabase.ProgramSettings.AllowBeep)
@@ -165,7 +172,7 @@ namespace Jelly_Software.AppSettings
                     Console.Write("   ");
             }
 
-            void settingSwitch()
+            void settingSwitch(ConsoleKey key)
             {
                 if (settingsPage == 1)
                 {
@@ -175,6 +182,12 @@ namespace Jelly_Software.AppSettings
                         _AppDatabase.ProgramSettings.AllowBeep = !_AppDatabase.ProgramSettings.AllowBeep;
                     else if (settingsCursor == 3)
                         _AppDatabase.ProgramSettings.AllowShowInitializeProgress = !_AppDatabase.ProgramSettings.AllowShowInitializeProgress;
+                    else if (settingsCursor == 4 && key == ConsoleKey.M && _AppDatabase.ProgramSettings.InitializeProgressTimer <= (int.MaxValue - 15000))
+                        _AppDatabase.ProgramSettings.InitializeProgressTimer += 5000;
+                    else if (settingsCursor == 4 && key == ConsoleKey.N && _AppDatabase.ProgramSettings.InitializeProgressTimer >= 15000)
+                        _AppDatabase.ProgramSettings.InitializeProgressTimer -= 5000;
+                    else if (settingsCursor == 4 && key == ConsoleKey.Enter)
+                        _AppDatabase.ProgramSettings.InitializeProgressTimer = 15000;
 
                     _AppDatabase.ProgramSettings.Save();
                 }
@@ -281,13 +294,26 @@ namespace Jelly_Software.AppSettings
                 if (settingsPage == 1)
                 {
                     curser(1);
-                    preBuildTools.WriteLineGreen($"{(_AppDatabase.ProgramSettings.AllowColors ? "Enabled " : "Disabled")} | Allow Colors in Output");
+                    preBuildTools.WriteLineColored($"{(_AppDatabase.ProgramSettings.AllowColors ? "Enabled " : "Disabled")} | Allow Colors in Output", ConsoleColor.Green);
 
                     curser(2);
-                    preBuildTools.WriteLineGreen($"{(_AppDatabase.ProgramSettings.AllowBeep ? "Enabled " : "Disabled")} | Allow Beep Sound Alerts");
+                    preBuildTools.WriteLineColored($"{(_AppDatabase.ProgramSettings.AllowBeep ? "Enabled " : "Disabled")} | Allow Beep Sound Alerts", ConsoleColor.Green);
 
                     curser(3);
-                    preBuildTools.WriteLineGreen($"{(_AppDatabase.ProgramSettings.AllowShowInitializeProgress ? "Enabled " : "Disabled")} | Show Initialization Progress");
+                    preBuildTools.WriteLineColored($"{(_AppDatabase.ProgramSettings.AllowShowInitializeProgress ? "Enabled " : "Disabled")} | Show Initialization Progress", ConsoleColor.Green);
+
+                    curser(4);
+                    TimeSpan time = TimeSpan.FromMilliseconds(_AppDatabase.ProgramSettings.InitializeProgressTimer);
+                    List<string> timeParts = new List<string>();
+
+                    if (time.Hours > 0) timeParts.Add($"{time.Hours}H");
+                    if (time.Minutes > 0) timeParts.Add($"{time.Minutes}M");
+                    timeParts.Add($"{time.Seconds}S");
+
+                    string formattedTime = string.Join(" ", timeParts);
+
+                    // PadRight(10) ensures the string is always 10 characters wide before the " |"
+                    preBuildTools.WriteLineColored($"{formattedTime.PadRight(9)}| Initialization Progress Timer", ConsoleColor.Green);
                 }
                 else if (settingsPage == 2)
                 {
@@ -400,15 +426,17 @@ namespace Jelly_Software.AppSettings
         /// <exception cref="FileNotFoundException"></exception>
         public static void VerifyDatabaseDirectories()
         {
-            if (!Directory.Exists("Database"))
+            // Check if the database and settings directories exist
+            if (!Directory.Exists(_AppDatabase.DatabaseDirectory))
                 throw new DirectoryNotFoundException("Database directory not found.");
-            if (!Directory.Exists("Database\\Settings"))
-                throw new DirectoryNotFoundException("Database\\Settings directory not found.");
+            if (!Directory.Exists(_AppDatabase.SettingsDirectory))
+                throw new DirectoryNotFoundException("Settings directory not found.");
 
-            if (!File.Exists("Database\\Settings\\ProgramSettings.json"))
-                throw new FileNotFoundException("ProgramSettings.json not found in Database\\Settings.");
-            if (!File.Exists("Database\\Settings\\ImdbServiceSettings.json"))
-                throw new FileNotFoundException("ImdbServiceSettings.json not found in Database\\Settings.");
+            // Check if the required settings files exist
+            if (!File.Exists(ProgramSettings.FilePath))
+                throw new FileNotFoundException($"{ProgramSettings.FilePath.Split('\\').Last()} not found in {ProgramSettings.FilePath}");
+            if (!File.Exists(ImdbServiceSettings.FilePath))
+                throw new FileNotFoundException($"{ImdbServiceSettings.FilePath.Split('\\').Last()} not found in {ImdbServiceSettings.FilePath}");
         }
     }
 }
