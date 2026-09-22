@@ -18,8 +18,8 @@ namespace Jelly_Software.AppDatabase.Settings
         /// Toggles console foreground color customization across the application.
         /// </summary>
         private protected static bool _allowColors = true;
-        public bool AllowColors 
-        { 
+        public bool AllowColors
+        {
             get
             {
                 _AppDatabase.VerifyDatabaseDirectories();
@@ -37,8 +37,8 @@ namespace Jelly_Software.AppDatabase.Settings
         /// Toggles console audio alert beeps (e.g. on error or critical initialization failure).
         /// </summary>
         private protected static bool _allowBeep = true;
-        public bool AllowBeep 
-        { 
+        public bool AllowBeep
+        {
             get
             {
                 _AppDatabase.VerifyDatabaseDirectories();
@@ -57,7 +57,7 @@ namespace Jelly_Software.AppDatabase.Settings
         /// </summary>
         private protected static bool _allowShowInitializeProgress = true;
         public bool AllowShowInitializeProgress
-        { 
+        {
             get
             {
                 _AppDatabase.VerifyDatabaseDirectories();

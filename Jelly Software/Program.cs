@@ -9,16 +9,11 @@ namespace Jelly_Software
 {
     internal class Program
     {
-        private static bool initialized;
-
         static void Main(string[] args)
         {
-            initialized = false;
-            Console.CursorVisible = false;
-
             initialize();
 
-            if (initialized)
+            if (_AppDatabase.IsProgramInitialized)
             {
                 ImdbService.TVShowMain().Wait();
             }
@@ -27,10 +22,10 @@ namespace Jelly_Software
                 // Play a beep sound to indicate failure
                 Console.Beep();
 
-                preBuildTools.WriteLineColored("\n\n\n\n[Initialization Failed] Exiting application...", ConsoleColor.Red);
+                preBuildTools.WriteLineColored("\n\n\n\n[Initialization Failed] Exiting application...", ConsoleColor.Red, !_AppDatabase.IsProgramInitialized);
                 // User instruction prompt
-                Console.WriteLine("Press [ENTER] to close.");
-                Console.ReadLine();
+                Console.WriteLine("Press any key to close.");
+                Console.ReadKey();
             }
         }
 
@@ -38,21 +33,23 @@ namespace Jelly_Software
         {
             try
             {
+                Console.CursorVisible = false;
+
                 // 1. Clear the console and display startup message with color support
                 Console.Clear();
-                preBuildTools.WriteLineColored("[STAND BY] Initialization in progress...\n", ConsoleColor.Yellow, true);
+                preBuildTools.WriteLineColored("[STAND BY] Initialization in progress...\n", ConsoleColor.Yellow, !_AppDatabase.IsProgramInitialized);
 
                 // 2. Load settings
                 if (_AppDatabase.LoadSettings())
                     throw new Exception("Setting loader returned a critical failure.");
 
                 // 3. Mark initialization as successful
-                initialized = true;
-                preBuildTools.WriteLineColored("\n[SUCCESS] Initialization complete!", ConsoleColor.Green, true);
+                _AppDatabase.IsProgramInitialized = true;
+                preBuildTools.WriteLineColored("\n[SUCCESS] Initialization complete!", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
 
                 Console.WriteLine();
                 if (_AppDatabase.ProgramSettings.AllowShowInitializeProgress)
-                    preBuildTools.Countdown(_AppDatabase.ProgramSettings.InitializeProgressTimer, true);
+                    preBuildTools.Countdown(_AppDatabase.ProgramSettings.InitializeProgressTimer, _AppDatabase.IsProgramInitialized);
 
                 // --> Apply the global background and safe typing color
                 Console.BackgroundColor = _AppDatabase.ProgramSettings.BackgroundColor;
@@ -65,7 +62,7 @@ namespace Jelly_Software
                 // Play a beep sound to indicate failure
                 Console.Beep();
                 // 4. Handle initialization failure
-                preBuildTools.WriteLineColored($"\n[INITIALIZE FAILED] : {ex.Message}", ConsoleColor.Red, true);
+                preBuildTools.WriteLineColored($"\n[INITIALIZE FAILED] : {ex.Message}", ConsoleColor.Red, !_AppDatabase.IsProgramInitialized);
             }
         }
     }

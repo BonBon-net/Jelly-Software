@@ -6,6 +6,11 @@
     <RootNamespace>Jelly_Software</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <ApplicationIcon>SxxExx_icon.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="SxxExx_icon.ico" />
+  </ItemGroup>
 
 </Project>

@@ -7,6 +7,8 @@ namespace Jelly_Software.AppSettings
 {
     public class _AppDatabase
     {
+        public static bool IsProgramInitialized = false;
+
         public static readonly string DatabaseDirectory = "Database";
         public static readonly string SettingsDirectory = $"{DatabaseDirectory}\\Settings";
 
@@ -34,46 +36,53 @@ namespace Jelly_Software.AppSettings
             new _AppDatabase();
 
             // Ensure the database directory exists before attempting to load settings
-            if (!Directory.Exists("Database"))
-                Directory.CreateDirectory("Database");
+            if (!Directory.Exists(DatabaseDirectory))
+                Directory.CreateDirectory(DatabaseDirectory);
 
             // Ensure the settings directory exists before attempting to load settings
-            if (!Directory.Exists("Database\\Settings"))
-                Directory.CreateDirectory("Database\\Settings");
+            if (!Directory.Exists(SettingsDirectory))
+                Directory.CreateDirectory(SettingsDirectory);
 
             int Count = 2; // Total settings tracked during initialization
 
-            try
-            {
-                ProgramSettings = ProgramSettings.Load();
+            bool criticalErrorOccurred = LoadSettingsFiles();
+            _AppDatabase.VerifyDatabaseDirectories();
+            return criticalErrorOccurred;
 
-                // Dev Note: Colored output during startup steps
-                preBuildTools.WriteLineColored($"[LOADED] (1/{Count}) Successfully loaded program settings", ConsoleColor.Cyan, true);
-            }
-            catch (Exception ex)
+            bool LoadSettingsFiles()
             {
-                // Play a beep sound to indicate failure
-                Console.Beep();
-                preBuildTools.WriteLineColored($"[CRITICAL ERROR] (1/{Count}) Failed to load program settings:\n{ex.Message}", ConsoleColor.DarkRed, true);
-                return true;
-            }
+                try
+                {
+                    ProgramSettings = ProgramSettings.Load();
 
-            try
-            {
-                ImdbServiceSettings = ImdbServiceSettings.Load();
+                    // Dev Note: Colored output during startup steps
+                    preBuildTools.WriteLineColored($"[LOADED] (1/{Count}) Successfully loaded program settings", ConsoleColor.Cyan, !_AppDatabase.IsProgramInitialized);
+                }
+                catch (Exception ex)
+                {
+                    // Play a beep sound to indicate failure
+                    Console.Beep();
+                    preBuildTools.WriteLineColored($"[CRITICAL ERROR] (1/{Count}) Failed to load program settings:\n{ex.Message}", ConsoleColor.DarkRed, !_AppDatabase.IsProgramInitialized);
+                    return true;
+                }
 
-                // Dev Note: Colored output during startup steps
-                preBuildTools.WriteLineColored($"[LOADED] (2/{Count}) Successfully loaded IMDb service settings", ConsoleColor.Cyan, true);
-            }
-            catch (Exception ex)
-            {
-                // Play a beep sound to indicate failure
-                Console.Beep();
-                preBuildTools.WriteLineColored($"[CRITICAL ERROR] (2/{Count}) Failed to load IMDb service settings:\n{ex.Message}", ConsoleColor.DarkRed, true);
-                return true;
-            }
+                try
+                {
+                    ImdbServiceSettings = ImdbServiceSettings.Load();
 
-            return false;
+                    // Dev Note: Colored output during startup steps
+                    preBuildTools.WriteLineColored($"[LOADED] (2/{Count}) Successfully loaded IMDb service settings", ConsoleColor.Cyan, !_AppDatabase.IsProgramInitialized);
+                }
+                catch (Exception ex)
+                {
+                    // Play a beep sound to indicate failure
+                    Console.Beep();
+                    preBuildTools.WriteLineColored($"[CRITICAL ERROR] (2/{Count}) Failed to load IMDb service settings:\n{ex.Message}", ConsoleColor.DarkRed, !_AppDatabase.IsProgramInitialized);
+                    return true;
+                }
+
+                return false;
+            }
         }
 
         public static void Settings(string input)
@@ -92,8 +101,8 @@ namespace Jelly_Software.AppSettings
                 Console.ForegroundColor = preBuildTools.EnsureContrast(ConsoleColor.Gray);
                 Console.Clear();
 
-                preBuildTools.WriteLineColored(TxtFile.WelcomeMessage, ConsoleColor.Green);
-                preBuildTools.WriteColored("> ", ConsoleColor.Green);
+                preBuildTools.WriteLineColored(TxtFile.WelcomeMessage, ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
+                preBuildTools.WriteColored("> ", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
                 Console.WriteLine(input);
 
                 writeSETTINGS();
@@ -148,17 +157,17 @@ namespace Jelly_Software.AppSettings
 
             void writeSETTINGS()
             {
-                preBuildTools.WriteLineColored($"\n'W' or '^' UP -- 'S' or 'v' DOWN -- 'A' or '<' Page Left -- 'D' or '>' Page Right\n'[ENTER]' or '[NUM PAD ENTER]' select -- '[ESCAPE]' or '[BACKSPACE]' Exit\n'[N]' or '[M]' adjust value\n\n============================== SETTINGS ({settingsPage}/{totalSettingsPages}) ==============================\n", ConsoleColor.Cyan);
+                preBuildTools.WriteLineColored($"\n'W' or '^' UP -- 'S' or 'v' DOWN -- 'A' or '<' Page Left -- 'D' or '>' Page Right\n'[ENTER]' or '[NUM PAD ENTER]' select -- '[ESCAPE]' or '[BACKSPACE]' Exit\n'[N]' or '[M]' adjust value or [ENTER] for default value\n\n============================== SETTINGS ({settingsPage}/{totalSettingsPages}) ==============================\n", ConsoleColor.Cyan, !_AppDatabase.IsProgramInitialized);
 
                 writeSETTINGSPage();
 
-                preBuildTools.WriteLineColored("\n============================================================================", ConsoleColor.Cyan);
+                preBuildTools.WriteLineColored("\n============================================================================", ConsoleColor.Cyan, !_AppDatabase.IsProgramInitialized);
             }
 
             void curser(int setting)
             {
                 if (settingsCursor == setting)
-                    preBuildTools.WriteColored(">> ", ConsoleColor.Green);
+                    preBuildTools.WriteColored(">> ", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
                 else
                     Console.Write("   ");
             }
@@ -285,7 +294,7 @@ namespace Jelly_Software.AppSettings
                         else if (_AppDatabase.ImdbServiceSettings.AllowImdb == null)
                             _AppDatabase.ImdbServiceSettings.AllowImdb = true;
                     }
-                    else if (settingsCursor == 9 && _AppDatabase.ImdbServiceSettings.AllowImdb == true)
+                    else if (settingsCursor == 9)
                     {
                         // 9: dashBeforeImdb
                         if (_AppDatabase.ImdbServiceSettings.DashBeforeImdb == true)
@@ -305,13 +314,13 @@ namespace Jelly_Software.AppSettings
                 if (settingsPage == 1)
                 {
                     curser(1);
-                    preBuildTools.WriteLineColored($"{(_AppDatabase.ProgramSettings.AllowColors ? "Enabled " : "Disabled")} | Allow Colors in Output", ConsoleColor.Green);
+                    preBuildTools.WriteLineColored($"{(_AppDatabase.ProgramSettings.AllowColors ? "Enabled " : "Disabled")} | Allow Colors in Output", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
 
                     curser(2);
-                    preBuildTools.WriteLineColored($"{(_AppDatabase.ProgramSettings.AllowBeep ? "Enabled " : "Disabled")} | Allow Beep Sound Alerts", ConsoleColor.Green);
+                    preBuildTools.WriteLineColored($"{(_AppDatabase.ProgramSettings.AllowBeep ? "Enabled " : "Disabled")} | Allow Beep Sound Alerts", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
 
                     curser(3);
-                    preBuildTools.WriteLineColored($"{(_AppDatabase.ProgramSettings.AllowShowInitializeProgress ? "Enabled " : "Disabled")} | Show Initialization Progress", ConsoleColor.Green);
+                    preBuildTools.WriteLineColored($"{(_AppDatabase.ProgramSettings.AllowShowInitializeProgress ? "Enabled " : "Disabled")} | Show Initialization Progress", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
 
                     curser(4);
                     TimeSpan time = TimeSpan.FromMilliseconds(_AppDatabase.ProgramSettings.InitializeProgressTimer);
@@ -324,12 +333,12 @@ namespace Jelly_Software.AppSettings
                     string formattedTime = string.Join(" ", timeParts);
 
                     // PadRight(10) ensures the string is always 10 characters wide before the " |"
-                    preBuildTools.WriteLineColored($"{formattedTime.PadRight(9)}| Initialization Progress Timer", ConsoleColor.Green);
+                    preBuildTools.WriteLineColored($"{formattedTime.PadRight(9)}| Initialization Progress Timer", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
 
                     // Add this below curser(4) block
                     curser(5);
                     string bgColorName = _AppDatabase.ProgramSettings.BackgroundColor.ToString();
-                    preBuildTools.WriteLineColored($"{bgColorName.PadRight(9)}| Application Background Color", ConsoleColor.Green);
+                    preBuildTools.WriteLineColored($"{bgColorName.PadRight(9)}| Application Background Color", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
                 }
                 else if (settingsPage == 2)
                 {
@@ -341,27 +350,27 @@ namespace Jelly_Software.AppSettings
                     // 1: allowSeasonYear
                     curser(1);
                     var allowSeasonYear = _AppDatabase.ImdbServiceSettings.AllowSeasonYear;
-                    preBuildTools.WriteColored(GetStatus(allowSeasonYear), GetColor(allowSeasonYear));
-                    preBuildTools.WriteLineColored("| Allow Season Year", ConsoleColor.Green);
+                    preBuildTools.WriteColored(GetStatus(allowSeasonYear), GetColor(allowSeasonYear), !_AppDatabase.IsProgramInitialized);
+                    preBuildTools.WriteLineColored("| Allow Season Year", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
 
                     // 2: allowEpisodeYear
                     curser(2);
                     var allowEpYear = _AppDatabase.ImdbServiceSettings.AllowEpisodeYear;
-                    preBuildTools.WriteColored(GetStatus(allowEpYear), GetColor(allowEpYear));
-                    preBuildTools.WriteLineColored("| Allow Use Of Episode Year", ConsoleColor.Green);
+                    preBuildTools.WriteColored(GetStatus(allowEpYear), GetColor(allowEpYear), !_AppDatabase.IsProgramInitialized);
+                    preBuildTools.WriteLineColored("| Allow Use Of Episode Year", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
 
                     // 3: useEpisodeReleaseYear
                     curser(3);
                     if (allowEpYear == true)
                     {
                         var useEpRelease = _AppDatabase.ImdbServiceSettings.UseEpisodeReleaseYear;
-                        preBuildTools.WriteColored(GetStatus(useEpRelease), GetColor(useEpRelease));
-                        preBuildTools.WriteLineColored("| Use Episode Release Year", ConsoleColor.Green);
+                        preBuildTools.WriteColored(GetStatus(useEpRelease), GetColor(useEpRelease), !_AppDatabase.IsProgramInitialized);
+                        preBuildTools.WriteLineColored("| Use Episode Release Year", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
                     }
                     else
                     {
-                        preBuildTools.WriteColored("UNAVAILABLE ", ConsoleColor.Red);
-                        preBuildTools.WriteLineColored($"| Use Episode Release Year (Disabled because Allow Episode Year is '{GetReason(allowEpYear)}')", ConsoleColor.Green);
+                        preBuildTools.WriteColored("UNAVAILABLE ", ConsoleColor.Red, !_AppDatabase.IsProgramInitialized);
+                        preBuildTools.WriteLineColored($"| Use Episode Release Year (Disabled because Allow Episode Year is '{GetReason(allowEpYear)}')", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
                     }
 
                     // 4: dashBeforeReleaseYear
@@ -369,13 +378,13 @@ namespace Jelly_Software.AppSettings
                     if (allowEpYear == true)
                     {
                         var dashBeforeRelease = _AppDatabase.ImdbServiceSettings.DashBeforeReleaseYear;
-                        preBuildTools.WriteColored(GetStatus(dashBeforeRelease), GetColor(dashBeforeRelease));
-                        preBuildTools.WriteLineColored("| Dash Before Release Year", ConsoleColor.Green);
+                        preBuildTools.WriteColored(GetStatus(dashBeforeRelease), GetColor(dashBeforeRelease), !_AppDatabase.IsProgramInitialized);
+                        preBuildTools.WriteLineColored("| Dash Before Release Year", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
                     }
                     else
                     {
-                        preBuildTools.WriteColored("UNAVAILABLE ", ConsoleColor.Red);
-                        preBuildTools.WriteLineColored($"| Dash Before Release Year (Disabled because Allow Episode Year is '{GetReason(allowEpYear)}')", ConsoleColor.Green);
+                        preBuildTools.WriteColored("UNAVAILABLE ", ConsoleColor.Red, !_AppDatabase.IsProgramInitialized);
+                        preBuildTools.WriteLineColored($"| Dash Before Release Year (Disabled because Allow Episode Year is '{GetReason(allowEpYear)}')", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
                     }
 
                     // 5: dashAfterReleaseYear
@@ -383,54 +392,46 @@ namespace Jelly_Software.AppSettings
                     if (allowEpYear == true)
                     {
                         var dashAfterRelease = _AppDatabase.ImdbServiceSettings.DashAfterReleaseYear;
-                        preBuildTools.WriteColored(GetStatus(dashAfterRelease), GetColor(dashAfterRelease));
-                        preBuildTools.WriteLineColored("| Dash After Release Year", ConsoleColor.Green);
+                        preBuildTools.WriteColored(GetStatus(dashAfterRelease), GetColor(dashAfterRelease), !_AppDatabase.IsProgramInitialized);
+                        preBuildTools.WriteLineColored("| Dash After Release Year", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
                     }
                     else
                     {
-                        preBuildTools.WriteColored("UNAVAILABLE ", ConsoleColor.Red);
-                        preBuildTools.WriteLineColored($"| Dash After Release Year (Disabled because Allow Episode Year is '{GetReason(allowEpYear)}')", ConsoleColor.Green);
+                        preBuildTools.WriteColored("UNAVAILABLE ", ConsoleColor.Red, !_AppDatabase.IsProgramInitialized);
+                        preBuildTools.WriteLineColored($"| Dash After Release Year (Disabled because Allow Episode Year is '{GetReason(allowEpYear)}')", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
                     }
 
                     // 6: allowEpisodeName
                     curser(6);
                     var allowEpName = _AppDatabase.ImdbServiceSettings.AllowEpisodeName;
-                    preBuildTools.WriteColored(GetStatus(allowEpName), GetColor(allowEpName));
-                    preBuildTools.WriteLineColored("| Allow Episode Name", ConsoleColor.Green);
+                    preBuildTools.WriteColored(GetStatus(allowEpName), GetColor(allowEpName), !_AppDatabase.IsProgramInitialized);
+                    preBuildTools.WriteLineColored("| Allow Episode Name", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
 
                     // 7: dashAfterSeasonEpisode
                     curser(7);
                     if (allowEpName == true)
                     {
                         var dashAfterSeason = _AppDatabase.ImdbServiceSettings.DashAfterSeasonEpisode;
-                        preBuildTools.WriteColored(GetStatus(dashAfterSeason), GetColor(dashAfterSeason));
-                        preBuildTools.WriteLineColored("| Dash After Season Episode", ConsoleColor.Green);
+                        preBuildTools.WriteColored(GetStatus(dashAfterSeason), GetColor(dashAfterSeason), !_AppDatabase.IsProgramInitialized);
+                        preBuildTools.WriteLineColored("| Dash After Season Episode", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
                     }
                     else
                     {
-                        preBuildTools.WriteColored("UNAVAILABLE ", ConsoleColor.Red);
-                        preBuildTools.WriteLineColored($"| Dash After Season Episode (Disabled because Allow Episode Name is '{GetReason(allowEpName)}')", ConsoleColor.Green);
+                        preBuildTools.WriteColored("UNAVAILABLE ", ConsoleColor.Red, !_AppDatabase.IsProgramInitialized);
+                        preBuildTools.WriteLineColored($"| Dash After Season Episode (Disabled because Allow Episode Name is '{GetReason(allowEpName)}')", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
                     }
 
                     // 8: allowImdb
                     curser(8);
                     var allowImdb = _AppDatabase.ImdbServiceSettings.AllowImdb;
-                    preBuildTools.WriteColored(GetStatus(allowImdb), GetColor(allowImdb));
-                    preBuildTools.WriteLineColored("| Allow IMDB", ConsoleColor.Green);
+                    preBuildTools.WriteColored(GetStatus(allowImdb), GetColor(allowImdb), !_AppDatabase.IsProgramInitialized);
+                    preBuildTools.WriteLineColored("| Allow IMDB", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
 
                     // 9: dashBeforeImdb
                     curser(9);
-                    if (allowImdb == true)
-                    {
-                        var dashBeforeImdb = _AppDatabase.ImdbServiceSettings.DashBeforeImdb;
-                        preBuildTools.WriteColored(GetStatus(dashBeforeImdb), GetColor(dashBeforeImdb));
-                        preBuildTools.WriteLineColored("| Dash Before IMDB", ConsoleColor.Green);
-                    }
-                    else
-                    {
-                        preBuildTools.WriteColored("UNAVAILABLE ", ConsoleColor.Red);
-                        preBuildTools.WriteLineColored($"| Dash Before IMDB (Disabled because Allow IMDB is '{GetReason(allowImdb)}')", ConsoleColor.Green);
-                    }
+                    var dashBeforeImdb = _AppDatabase.ImdbServiceSettings.DashBeforeImdb;
+                    preBuildTools.WriteColored(GetStatus(dashBeforeImdb), GetColor(dashBeforeImdb), !_AppDatabase.IsProgramInitialized);
+                    preBuildTools.WriteLineColored("| Dash Before IMDB", ConsoleColor.Green, !_AppDatabase.IsProgramInitialized);
                 }
             }
         }
@@ -442,17 +443,20 @@ namespace Jelly_Software.AppSettings
         /// <exception cref="FileNotFoundException"></exception>
         public static void VerifyDatabaseDirectories()
         {
-            // Check if the database and settings directories exist
-            if (!Directory.Exists(_AppDatabase.DatabaseDirectory))
-                throw new DirectoryNotFoundException("Database directory not found.");
-            if (!Directory.Exists(_AppDatabase.SettingsDirectory))
-                throw new DirectoryNotFoundException("Settings directory not found.");
+            if (_AppDatabase.IsProgramInitialized)
+            {
+                // Check if the database and directories exist
+                if (!Directory.Exists(_AppDatabase.DatabaseDirectory))
+                    throw new DirectoryNotFoundException($"{_AppDatabase.DatabaseDirectory} directory not found.");
+                if (!Directory.Exists(_AppDatabase.SettingsDirectory))
+                    throw new DirectoryNotFoundException($"{_AppDatabase.SettingsDirectory.Split('\\').Last()} directory not found.");
 
-            // Check if the required settings files exist
-            if (!File.Exists(ProgramSettings.FilePath))
-                throw new FileNotFoundException($"{ProgramSettings.FilePath.Split('\\').Last()} not found in {ProgramSettings.FilePath}");
-            if (!File.Exists(ImdbServiceSettings.FilePath))
-                throw new FileNotFoundException($"{ImdbServiceSettings.FilePath.Split('\\').Last()} not found in {ImdbServiceSettings.FilePath}");
+                // Check if the required settings files exist
+                if (!File.Exists(ProgramSettings.FilePath))
+                    throw new FileNotFoundException($"{ProgramSettings.FilePath.Split('\\').Last()} not found in {ProgramSettings.FilePath}");
+                if (!File.Exists(ImdbServiceSettings.FilePath))
+                    throw new FileNotFoundException($"{ImdbServiceSettings.FilePath.Split('\\').Last()} not found in {ImdbServiceSettings.FilePath}");
+            }
         }
     }
 }

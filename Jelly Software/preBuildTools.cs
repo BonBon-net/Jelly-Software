@@ -13,7 +13,7 @@ namespace Jelly_Software
     public static class preBuildTools
     {
         /// <summary>
-        /// Prevents text from disappearing by toggling between light and dark variants 
+        /// Prevents text from disappearing by toggling between light and dark variants.
         /// of a color if the foreground and background match.
         /// </summary>
         public static ConsoleColor EnsureContrast(ConsoleColor textColor)
@@ -62,9 +62,9 @@ namespace Jelly_Software
         /// <summary>
         /// Helper to print colored console inline text respecting user 'AllowColors' setting.
         /// </summary>
-        public static void WriteColored(string text, ConsoleColor color)
+        public static void WriteColored(string text, ConsoleColor color, bool forceColor = false)
         {
-            if (_AppDatabase.ProgramSettings.AllowColors)
+            if (forceColor || _AppDatabase.ProgramSettings.AllowColors)
             {
                 ConsoleColor previousForeground = Console.ForegroundColor;
 
@@ -80,6 +80,11 @@ namespace Jelly_Software
             }
         }
 
+        /// <summary>
+        /// Renames a file or folder from an old path to a new path, ensuring that the new name is sanitized and valid for the file system. If the specified path does not exist, an error message is displayed.
+        /// </summary>
+        /// <param name="oldPath"></param>
+        /// <param name="newPath"></param>
         public static void RenameFileOrFolder(string oldPath, string newPath)
         {
             string path = oldPath;
@@ -105,6 +110,11 @@ namespace Jelly_Software
             }
         }
 
+        /// <summary>
+        /// Sanitizes a filename by removing illegal characters and trimming trailing spaces and periods, ensuring compatibility with Windows file system restrictions.
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <returns></returns>
         public static string SanitizeFilename(string filename)
         {
             if (string.IsNullOrWhiteSpace(filename))
@@ -122,6 +132,11 @@ namespace Jelly_Software
             return cleanString.TrimEnd(' ', '.');
         }
 
+        /// <summary>
+        /// Navigates to the parent directory of a given path by recursively combining path segments until only the root remains.
+        /// </summary>
+        /// <param name="path"></param>
+        /// <returns></returns>
         public static string GoToParentDirectory(string path)
         {
             List<string> pathParts = path.Split('\\').ToList();
@@ -140,6 +155,10 @@ namespace Jelly_Software
             }
         }
 
+        /// <summary>
+        /// Clears a specified number of lines from the console, starting from the current cursor position and moving upwards.
+        /// </summary>
+        /// <param name="lineCount"></param>
         public static void ClearConsoleLines(int lineCount)
         {
             int currentTop = Console.CursorTop;
@@ -159,7 +178,14 @@ namespace Jelly_Software
             Console.SetCursorPosition(0, resetTop);
         }
 
-        //","explanation":"Avoid ArgumentOutOfRangeException by not setting cursor to a negative top; clear current line when CursorTop is 0."}`
+        /// <summary>
+        /// Prompts the user with a question and waits for a confirmation input based on specified character answers.
+        /// </summary>
+        /// <param name="question"></param>
+        /// <param name="charAnswers"></param>
+        /// <param name="warnings"></param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentException"></exception>
         public static bool GetUserConfirmation(string[] question, char[] charAnswers, string[] warnings)
         {
             if (question.Length != 2)
@@ -247,6 +273,12 @@ namespace Jelly_Software
             return userInput;
         }
 
+        /// <summary>
+        /// Displays a countdown timer in the console for a specified duration, allowing optional manual interruption by the user.
+        /// </summary>
+        /// <param name="delayMs"></param>
+        /// <param name="allowManualBreak"></param>
+        /// <param name="customMessage"></param>
         public static void Countdown(int delayMs, bool allowManualBreak, string customMessage = default!)
         {
             Console.CursorVisible = false;

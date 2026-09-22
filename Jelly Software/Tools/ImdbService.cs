@@ -453,11 +453,11 @@ namespace Jelly_Software.Tools
                                     question = new string[2] { "Use IMDb IDs in file names", "Don't use IMDb IDs in file names" };
                                     charAnswers = new char[2] { 'Y', 'N' };
                                     warnings = new string[] { "The IMDb ID is not automated due to anti-bot restrictions", "Existing IMDb IDs in file names will be preserved and used" };
-                                    allowImdb = preBuildTools.GetUserConfirmation(question, charAnswers, warnings);
+                                    allowImdb = preBuildTools.GetUserConfirmation(question, charAnswers, new string[] { });
                                 }
 
                                 // curser 9
-                                if (allowImdb == true || hasFileImdbIds)
+                                if (dashBeforeImdb == null || (dashBeforeImdb == false && hasFileImdbIds))
                                 {
                                     Console.WriteLine();
                                     if (hasFileImdbIds)
@@ -472,7 +472,7 @@ namespace Jelly_Software.Tools
                                 question = new string[2] { "Continue renaming", "Cancel renaming" };
                                 charAnswers = new char[2] { 'Y', 'N' };
                                 warnings = new string[] { "This is your last chance before all files are renamed!" };
-                                bool lastChance = preBuildTools.GetUserConfirmation(question, charAnswers, warnings);
+                                bool lastChance = preBuildTools.GetUserConfirmation(question, charAnswers, new string[] { });
 
                                 if (lastChance)
                                 {
