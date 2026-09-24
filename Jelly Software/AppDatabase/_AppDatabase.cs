@@ -227,19 +227,38 @@ namespace Jelly_Software.AppSettings
                     {
                         // 2: allowEpisodeYear
                         if (_AppDatabase.ImdbServiceSettings.AllowEpisodeYear == true)
+                        {
                             _AppDatabase.ImdbServiceSettings.AllowEpisodeYear = false;
+                            reset();
+                        }
                         else if (_AppDatabase.ImdbServiceSettings.AllowEpisodeYear == false)
+                        {
                             _AppDatabase.ImdbServiceSettings.AllowEpisodeYear = null;
+                            reset();
+                        }
                         else if (_AppDatabase.ImdbServiceSettings.AllowEpisodeYear == null)
+                        {
                             _AppDatabase.ImdbServiceSettings.AllowEpisodeYear = true;
+                        }
+
+                        void reset()
+                        {
+                            _AppDatabase.ImdbServiceSettings.UseEpisodeReleaseYear = null;
+                            _AppDatabase.ImdbServiceSettings.DashBeforeReleaseYear = null;
+                            _AppDatabase.ImdbServiceSettings.DashAfterReleaseYear = null;
+                        }
                     }
                     else if (settingsCursor == 3 && _AppDatabase.ImdbServiceSettings.AllowEpisodeYear == true)
                     {
                         // 3: useEpisodeReleaseYear
                         if (_AppDatabase.ImdbServiceSettings.UseEpisodeReleaseYear == true)
+                        {
                             _AppDatabase.ImdbServiceSettings.UseEpisodeReleaseYear = false;
+                        }
                         else if (_AppDatabase.ImdbServiceSettings.UseEpisodeReleaseYear == false)
+                        {
                             _AppDatabase.ImdbServiceSettings.UseEpisodeReleaseYear = null;
+                        }
                         else if (_AppDatabase.ImdbServiceSettings.UseEpisodeReleaseYear == null)
                             _AppDatabase.ImdbServiceSettings.UseEpisodeReleaseYear = true;
 
@@ -268,9 +287,15 @@ namespace Jelly_Software.AppSettings
                     {
                         // 6: allowEpisodeName
                         if (_AppDatabase.ImdbServiceSettings.AllowEpisodeName == true)
+                        {
                             _AppDatabase.ImdbServiceSettings.AllowEpisodeName = false;
+                            _AppDatabase.ImdbServiceSettings.DashAfterSeasonEpisode = null;
+                        }
                         else if (_AppDatabase.ImdbServiceSettings.AllowEpisodeName == false)
+                        {
                             _AppDatabase.ImdbServiceSettings.AllowEpisodeName = null;
+                            _AppDatabase.ImdbServiceSettings.DashAfterSeasonEpisode = null;
+                        }
                         else if (_AppDatabase.ImdbServiceSettings.AllowEpisodeName == null)
                             _AppDatabase.ImdbServiceSettings.AllowEpisodeName = true;
                     }

@@ -438,7 +438,7 @@ namespace Jelly_Software.Tools
                                 }
 
                                 // curser 7
-                                if (allowEpisodeName == true)
+                                if (allowEpisodeName == true && dashAfterSeasonEpisode == null)
                                 {
                                     Console.WriteLine();
                                     question = new string[2] { "Yes, add dash '-' between SxxExx & Episode Name", "No, don't add dash '-'" };
@@ -638,7 +638,7 @@ namespace Jelly_Software.Tools
                 throw new InvalidOperationException("Configuration missing: 'allow Episode Name' cannot be null.");
 
             // 7. Prevent execution if episode name is enabled but missing its dependent logic/settings
-            else if (allowEpisodeName == true)
+            else if (allowEpisodeName == true && dashAfterSeasonEpisode == null)
                 throw new InvalidOperationException("Incomplete configuration: 'allow Episode Name' is enabled, but its required sub-settings are missing or not implemented.");
 
             // 8. Verify primary IMDb configuration exists
@@ -1350,7 +1350,7 @@ namespace Jelly_Software.Tools
 
         public class TxtFile
         {
-            public static readonly string WelcomeMessage = "Version 1.0.7 [BETA]\nType 'Help' for more information.\nType 'Settings' to modify application settings.\nInsert TV Show Folder Path:";
+            public static readonly string WelcomeMessage = "Version 1.0.7\nType 'Help' for more information.\nType 'Settings' to modify application settings.\nInsert TV Show Folder Path:";
         }
     }
 }
