@@ -1,17 +1,20 @@
 ﻿using Jelly_Software.AppSettings;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Text.Json;
+using System.Drawing;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
+using System.Timers;
 
 namespace Jelly_Software
 {
     public static class preBuildTools
     {
+        /// <summary>
+        /// Holds the application settings, including user preferences for console colors, beep sounds, and initialization status.
+        /// </summary>
+        public static Setting Setting = new();
+
+        private static readonly ConsoleColor DefaltConsoleColor = ConsoleColor.Black;
+        private static readonly bool DefaltAllowColors = true;
+
         /// <summary>
         /// Prevents text from disappearing by toggling between light and dark variants.
         /// of a color if the foreground and background match.
@@ -23,9 +26,9 @@ namespace Jelly_Software
             ConsoleColor bgColor = Console.BackgroundColor;
 
             // Use the saved setting only if the settings are fully initialized
-            if (_AppDatabase.ProgramSettings != null)
+            if (Setting != null)
             {
-                bgColor = _AppDatabase.ProgramSettings.BackgroundColor;
+                bgColor = Setting.BackgroundColor;
             }
 
             if (textColor == bgColor)
@@ -39,11 +42,27 @@ namespace Jelly_Software
         }
 
         /// <summary>
-        /// Helper to print colored console lines respecting user 'AllowColors' setting.
+        /// Helper to print colored console text with a newline, respecting user 'AllowColors' setting.
         /// </summary>
-        public static void WriteLineColored(string text, ConsoleColor color, bool forceColor = false)
+        public static void WriteLine()
         {
-            if (forceColor || _AppDatabase.ProgramSettings.AllowColors)
+            WriteLine(string.Empty, DefaltConsoleColor, DefaltAllowColors);
+        }
+        public static void WriteLine(string text)
+        {
+            WriteLine(text, DefaltConsoleColor, DefaltAllowColors);
+        }
+        public static void WriteLine(string text, bool allowColors)
+        {
+            WriteLine(text, DefaltConsoleColor, allowColors);
+        }
+        public static void WriteLine(string text, ConsoleColor color)
+        {
+            WriteLine(text, color, Setting.AllowColors);
+        }
+        public static void WriteLine(string text, ConsoleColor color, bool AllowColors)
+        {
+            if (AllowColors)
             {
                 ConsoleColor previousForeground = Console.ForegroundColor;
 
@@ -60,11 +79,23 @@ namespace Jelly_Software
         }
 
         /// <summary>
-        /// Helper to print colored console inline text respecting user 'AllowColors' setting.
+        /// Helper to print colored console text respecting user 'AllowColors' setting.
         /// </summary>
-        public static void WriteColored(string text, ConsoleColor color, bool forceColor = false)
+        public static void Write(string text)
         {
-            if (forceColor || _AppDatabase.ProgramSettings.AllowColors)
+            Write(text, DefaltConsoleColor, DefaltAllowColors);
+        }
+        public static void Write(string text, bool allowColors)
+        {
+            Write(text, DefaltConsoleColor, allowColors);
+        }
+        public static void Write(string text, ConsoleColor color)
+        {
+            Write(text, color, Setting.AllowColors);
+        }
+        public static void Write(string text, ConsoleColor color, bool AllowColors)
+        {
+            if (AllowColors)
             {
                 ConsoleColor previousForeground = Console.ForegroundColor;
 
@@ -81,32 +112,75 @@ namespace Jelly_Software
         }
 
         /// <summary>
-        /// Renames a file or folder from an old path to a new path, ensuring that the new name is sanitized and valid for the file system. If the specified path does not exist, an error message is displayed.
+        /// 
         /// </summary>
         /// <param name="oldPath"></param>
         /// <param name="newPath"></param>
-        public static void RenameFileOrFolder(string oldPath, string newPath)
+        public static void MoveFileSystemItem(string sourcePath, string destinationPath)
         {
-            string path = oldPath;
-            string newName = newPath;
-            string newpath = Path.Combine(Path.GetDirectoryName(path) ?? string.Empty, newName);
+            if (string.IsNullOrWhiteSpace(sourcePath))
+                throw new ArgumentNullException(nameof(sourcePath));
 
-            newName = $"{GoToParentDirectory(newpath)}\\{SanitizeFilename(newpath.Split("\\").Last())}";
+            if (string.IsNullOrWhiteSpace(destinationPath))
+                throw new ArgumentNullException(nameof(destinationPath));
 
-            if (File.Exists(path))
+            // Clean up trailing slashes to ensure Path.GetFileName works correctly on folders
+            sourcePath = sourcePath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            destinationPath = destinationPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            if (!File.Exists(sourcePath) && File.Exists(destinationPath))
+                destinationPath = GoToParentDirectory(destinationPath);
+
+            // If the destination is an existing folder, append the source item's name automatically
+            if (Directory.Exists(destinationPath))
             {
-                File.Move(path, newName);
+                string itemName = Path.GetFileName(sourcePath);
+                destinationPath = Path.Combine(destinationPath, itemName);
             }
-            else if (Directory.Exists(path))
-            {
-                Directory.Move(path, newName);
-            }
+
+            // Ensure the target directory structure exists
+            string? destDir = Path.GetDirectoryName(destinationPath);
+            if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
+                Directory.CreateDirectory(destDir);
+
+            if (File.Exists(sourcePath))
+                File.Move(sourcePath, destinationPath);
+            else if (Directory.Exists(sourcePath))
+                Directory.Move(sourcePath, destinationPath);
             else
             {
-                // Dev Note: Check dev configuration before issuing sound alert
-                if (_AppDatabase.ProgramSettings.AllowBeep)
+                if (Setting.AllowBeep)
                     Console.Beep();
-                WriteLineColored($"[ERROR] Path does not exist: {path}", ConsoleColor.Red);
+
+                WriteLine($"[ERROR] Source path does not exist: {sourcePath}", ConsoleColor.Red);
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sourcePath"></param>
+        /// <param name="newName"></param>
+        /// <exception cref="ArgumentNullException"></exception>
+        public static void RenameFileSystemItem(string sourcePath, string newName)
+        {
+            if (string.IsNullOrWhiteSpace(sourcePath))
+                throw new ArgumentNullException(nameof(sourcePath));
+
+            string? directory = Path.GetDirectoryName(sourcePath) ?? string.Empty;
+            string sanitizedName = SanitizeString(newName);
+            string destinationPath = Path.Combine(directory, sanitizedName);
+
+            if (File.Exists(sourcePath))
+                File.Move(sourcePath, destinationPath);
+            else if (Directory.Exists(sourcePath))
+                Directory.Move(sourcePath, destinationPath);
+            else
+            {
+                if (Setting.AllowBeep)
+                    Console.Beep();
+
+                WriteLine($"[ERROR] Path does not exist: {sourcePath}", ConsoleColor.Red);
             }
         }
 
@@ -115,7 +189,7 @@ namespace Jelly_Software
         /// </summary>
         /// <param name="filename"></param>
         /// <returns></returns>
-        public static string SanitizeFilename(string filename)
+        public static string SanitizeString(string filename)
         {
             if (string.IsNullOrWhiteSpace(filename))
             {
@@ -215,14 +289,14 @@ namespace Jelly_Software
                         string warnMsg = warnings.Length > 1
                             ? $"WARNING ({i + 1}): {warnings[i]}"
                             : $"WARNING: {warnings[i]}";
-                        WriteLineColored(warnMsg, ConsoleColor.Yellow);
+                        WriteLine(warnMsg, ConsoleColor.Yellow);
                     }
                 }
 
-                WriteLineColored($"[{charAnswers.First()}] {question.First()}", ConsoleColor.Green);
-                WriteLineColored($"[{charAnswers.Last()}] {question.Last()}", ConsoleColor.Green);
+                WriteLine($"[{charAnswers.First()}] {question.First()}", ConsoleColor.Green);
+                WriteLine($"[{charAnswers.Last()}] {question.Last()}", ConsoleColor.Green);
 
-                WriteColored("> ", ConsoleColor.Green);
+                Write("> ", ConsoleColor.Green);
 
                 string input = "";
 
@@ -234,7 +308,7 @@ namespace Jelly_Software
                         if (input.Length > 0)
                         {
                             // Dev Note: Check dev configuration before issuing sound alert
-                            if (_AppDatabase.ProgramSettings.AllowBeep)
+                            if (Setting.AllowBeep)
                                 Console.Beep();
                             Console.WriteLine();
                             break;
@@ -243,7 +317,7 @@ namespace Jelly_Software
                     else if (key.Key == ConsoleKey.Backspace && input.Length > 0)
                     {
                         input = "";
-                        Console.Write("\b \b");
+                        Write("\b \b");
                     }
                     else if (input.Length == 0)
                     {
@@ -252,7 +326,7 @@ namespace Jelly_Software
                             pressedChar == charAnswers.Last().ToString().ToUpper().ToCharArray().First())
                         {
                             input = pressedChar.ToString();
-                            Console.Write(input);
+                            Write(input);
                         }
                     }
                 }
@@ -279,14 +353,26 @@ namespace Jelly_Software
         /// <param name="delayMs"></param>
         /// <param name="allowManualBreak"></param>
         /// <param name="customMessage"></param>
-        public static void Countdown(int delayMs, bool allowManualBreak, string customMessage = default!)
+        /// <param name="showColors"></param>
+        public static void Countdown(int delayMs, bool allowManualBreak, string customMessage = default!, bool showColors = true)
         {
             Console.CursorVisible = false;
 
             if (allowManualBreak)
-                WriteLineColored($"[COUNTDOWN] Press [ESC], [ENTER], [SPACEBAR], or [BACKSPACE] to break the countdown.", ConsoleColor.Yellow);
+            {
+                if (showColors)
+                    WriteLine($"[COUNTDOWN] Press [ESC], [ENTER], [SPACEBAR], or [BACKSPACE] to break the countdown.", ConsoleColor.Yellow, !Setting.IsProgramInitialized);
+                else
+                    WriteLine($"[COUNTDOWN] Press [ESC], [ENTER], [SPACEBAR], or [BACKSPACE] to break the countdown.", !Setting.IsProgramInitialized);
+            }
+
             if (!string.IsNullOrEmpty(customMessage?.Trim()))
-                WriteLineColored(customMessage.Trim(), ConsoleColor.Cyan);
+            {
+                if (showColors)
+                    WriteLine(customMessage.Trim(), ConsoleColor.Cyan, !Setting.IsProgramInitialized);
+                else
+                    WriteLine(customMessage.Trim(), !Setting.IsProgramInitialized);
+            }
             // Run the countdown task unconditionally. The break logic is handled inside.
             waitCountdown(delayMs).Wait();
 
@@ -332,7 +418,10 @@ namespace Jelly_Software
                     formattedTime += $"{remaining.Milliseconds}ms";
 
                     ClearConsoleLines(0);
-                    WriteColored($"[COUNTDOWN] Remaining time: {formattedTime}", ConsoleColor.Cyan);
+                    if (showColors)
+                        Write($"[COUNTDOWN] Remaining time: {formattedTime}", ConsoleColor.Cyan, !Setting.IsProgramInitialized);
+                    else
+                        Write($"[COUNTDOWN] Remaining time: {formattedTime}", !Setting.IsProgramInitialized);
 
                     await Task.Delay(15);
                 }
