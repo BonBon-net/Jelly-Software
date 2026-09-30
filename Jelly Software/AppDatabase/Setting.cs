@@ -371,12 +371,11 @@ namespace Jelly_Software.AppSettings
 
                 // Render screen
                 Console.BackgroundColor = BackgroundColor;
-                Console.ForegroundColor = preBuildTools.EnsureContrast(ConsoleColor.Gray);
+                Console.ForegroundColor = preBuildTools.EnsureContrast(ConsoleColor.Green);
                 Console.Clear();
 
-                preBuildTools.WriteLine(TxtFile.WelcomeMessage, ConsoleColor.Green, !IsProgramInitialized);
-                preBuildTools.Write("> ", ConsoleColor.Green, !IsProgramInitialized);
-                Console.WriteLine(input);
+                preBuildTools.Write($"{TxtFile.WelcomeMessage}\n> ", ConsoleColor.Green, !IsProgramInitialized);
+                preBuildTools.WriteLine(input);
 
                 writeSETTINGS();
 
@@ -679,7 +678,7 @@ namespace Jelly_Software.AppSettings
                     curser(7);
                     var allowEpYear = AllowEpisodeYear;
                     preBuildTools.Write(GetStatus(allowEpYear), GetColor(allowEpYear), !IsProgramInitialized);
-                    preBuildTools.WriteLine("| Allow Use Of Episode Year", ConsoleColor.Green, !IsProgramInitialized);
+                    preBuildTools.WriteLine("| Allow use of release year in naming", ConsoleColor.Green, !IsProgramInitialized);
 
                     // 3: useEpisodeReleaseYear
                     curser(8);
@@ -687,7 +686,7 @@ namespace Jelly_Software.AppSettings
                     {
                         var useEpRelease = UseEpisodeReleaseYear;
                         preBuildTools.Write(GetStatus(useEpRelease), GetColor(useEpRelease), !IsProgramInitialized);
-                        preBuildTools.WriteLine("| Use Episode Release Year", ConsoleColor.Green, !IsProgramInitialized);
+                        preBuildTools.WriteLine($"| Use Episode Release Year (Using {useEpRelease switch { true => "Episode Year", false => "Tv Show Year", null => "Noting Selected" }})", ConsoleColor.Green, !IsProgramInitialized);
                     }
                     else
                     {

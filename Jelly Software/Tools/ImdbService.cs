@@ -1,4 +1,5 @@
-﻿using System.Globalization;
+﻿using Jelly_Software.AppSettings;
+using System.Globalization;
 using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -269,7 +270,7 @@ namespace Jelly_Software.Tools
                                     char[] repA = new char[] { 'Y', 'N' };
                                     bool replaceImdb = preBuildTools.GetUserConfirmation(repQ, repA, new string[] { });
 
-                                    if (replaceImdb)
+                                    if (replaceImdb == true)
                                     {
                                         imdbId = newImdbId;
                                     }
@@ -343,12 +344,17 @@ namespace Jelly_Software.Tools
 
                             if (tvShowFolderName != expectedFolderName)
                             {
-                                Console.WriteLine();
-                                string[] folderQ = new string[] { $"Rename parent folder from '{tvShowFolderName}' to '{expectedFolderName}'?", "Keep current folder name" };
-                                char[] folderA = new char[] { 'Y', 'N' };
-                                bool renameFolder = preBuildTools.GetUserConfirmation(folderQ, folderA, new string[] { });
+                                bool? renameFolder = null;
+                                if (preBuildTools.Setting.AllowImdb == null)
+                                {
+                                    Console.WriteLine();
+                                    string[] folderQ = new string[] { $"Rename parent folder from '{tvShowFolderName}' to '{expectedFolderName}'?", "Keep current folder name" };
+                                    char[] folderA = new char[] { 'Y', 'N' };
+                                    renameFolder = preBuildTools.GetUserConfirmation(folderQ, folderA, new string[] { });
+                                }
+                                else renameFolder = preBuildTools.Setting.AllowImdb;
 
-                                if (renameFolder)
+                                if (renameFolder == true)
                                 {
                                     string newParentDirectory = $"{preBuildTools.GoToParentDirectory(showMetadata.FolderPath)}\\{expectedFolderName}";
                                     preBuildTools.MoveFileSystemItem(showMetadata.FolderPath, newParentDirectory);
@@ -1019,7 +1025,7 @@ namespace Jelly_Software.Tools
 
             foreach (var ep in episodesArray.EnumerateArray())
             {
-                Task.Delay(5).Wait(); // Delay to avoid hitting rate limits
+                Task.Delay(35).Wait(); // Delay to avoid hitting rate limits
 
                 int tvmazeEpId = ep.GetProperty("id").GetInt32();
                 int seasonNum = ep.GetProperty("season").GetInt32();
@@ -1106,7 +1112,7 @@ namespace Jelly_Software.Tools
                         delayMs += (int)response.Headers.RetryAfter.Delta.Value.TotalMilliseconds * 10;
                     }
 
-                    preBuildTools.Countdown(delayMs, false, "Rate limit reached (429). Retrying...");
+                    preBuildTools.Countdown(delayMs, preBuildTools.Setting.AllowColors, "Rate limit reached (429). Retrying...");
 
                     preBuildTools.Write($"\rRate limit reached (429). Retrying in: 0ms".PadRight(95), ConsoleColor.Yellow);
                     // Dev Note: Check dev configuration before issuing sound alert

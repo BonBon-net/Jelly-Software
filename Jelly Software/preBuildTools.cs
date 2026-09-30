@@ -8,17 +8,16 @@ namespace Jelly_Software
     public static class preBuildTools
     {
         /// <summary>
-        /// Holds the application settings, including user preferences for console colors, beep sounds, and initialization status.
+        /// Default configuration for console background color and color allowance.
         /// </summary>
         public static Setting Setting = new();
 
-        private static readonly ConsoleColor DefaltConsoleColor = ConsoleColor.Black;
+        private static readonly ConsoleColor DefaltForegroundColor = Console.ForegroundColor;
         private static readonly bool DefaltAllowColors = true;
 
-        /// <summary>
-        /// Prevents text from disappearing by toggling between light and dark variants.
-        /// of a color if the foreground and background match.
-        /// </summary>
+        /// <summary>Ensures the text color contrasts with the console background.</summary>
+        /// <param name="textColor">Intended text color.</param>
+        /// <returns>A contrasting ConsoleColor.</returns>
         public static ConsoleColor EnsureContrast(ConsoleColor textColor)
         {
             // ... (keep the rest of the method exactly the same)
@@ -41,20 +40,20 @@ namespace Jelly_Software
             return textColor;
         }
 
-        /// <summary>
-        /// Helper to print colored console text with a newline, respecting user 'AllowColors' setting.
-        /// </summary>
+        /// <summary>Writes text to the console, followed by a line terminator.</summary>
+        /// <param name="text">Text to write.</param> <param name="color">Text color.</param>
+        /// <param name="allowColors">Whether to allow color rendering.</param>
         public static void WriteLine()
         {
-            WriteLine(string.Empty, DefaltConsoleColor, DefaltAllowColors);
+            WriteLine(string.Empty, DefaltForegroundColor, DefaltAllowColors);
         }
         public static void WriteLine(string text)
         {
-            WriteLine(text, DefaltConsoleColor, DefaltAllowColors);
+            WriteLine(text, DefaltForegroundColor, DefaltAllowColors);
         }
         public static void WriteLine(string text, bool allowColors)
         {
-            WriteLine(text, DefaltConsoleColor, allowColors);
+            WriteLine(text, DefaltForegroundColor, allowColors);
         }
         public static void WriteLine(string text, ConsoleColor color)
         {
@@ -78,16 +77,16 @@ namespace Jelly_Software
             }
         }
 
-        /// <summary>
-        /// Helper to print colored console text respecting user 'AllowColors' setting.
-        /// </summary>
+        /// <summary>Writes text to the console without a line terminator.</summary>
+        /// <param name="text">Text to write.</param> <param name="color">Text color.</param>
+        /// <param name="allowColors">Whether to allow color rendering.</param>
         public static void Write(string text)
         {
-            Write(text, DefaltConsoleColor, DefaltAllowColors);
+            Write(text, DefaltForegroundColor, DefaltAllowColors);
         }
         public static void Write(string text, bool allowColors)
         {
-            Write(text, DefaltConsoleColor, allowColors);
+            Write(text, DefaltForegroundColor, allowColors);
         }
         public static void Write(string text, ConsoleColor color)
         {
@@ -111,11 +110,9 @@ namespace Jelly_Software
             }
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="oldPath"></param>
-        /// <param name="newPath"></param>
+        /// <summary>Moves a file or directory to a new destination.</summary>
+        /// <param name="sourcePath">The current path.</param>
+        /// <param name="destinationPath">The target destination path.</param>
         public static void MoveFileSystemItem(string sourcePath, string destinationPath)
         {
             if (string.IsNullOrWhiteSpace(sourcePath))
@@ -156,12 +153,9 @@ namespace Jelly_Software
             }
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="sourcePath"></param>
-        /// <param name="newName"></param>
-        /// <exception cref="ArgumentNullException"></exception>
+        /// <summary>Renames a file or directory in place.</summary>
+        /// <param name="sourcePath">The current path.</param>
+        /// <param name="newName">The new name for the item.</param>
         public static void RenameFileSystemItem(string sourcePath, string newName)
         {
             if (string.IsNullOrWhiteSpace(sourcePath))
@@ -184,11 +178,9 @@ namespace Jelly_Software
             }
         }
 
-        /// <summary>
-        /// Sanitizes a filename by removing illegal characters and trimming trailing spaces and periods, ensuring compatibility with Windows file system restrictions.
-        /// </summary>
-        /// <param name="filename"></param>
-        /// <returns></returns>
+        /// <summary>Removes illegal characters from a filename string.</summary>
+        /// <param name="filename">The input string.</param>
+        /// <returns>A sanitized string valid for file systems.</returns>
         public static string SanitizeString(string filename)
         {
             if (string.IsNullOrWhiteSpace(filename))
@@ -206,11 +198,9 @@ namespace Jelly_Software
             return cleanString.TrimEnd(' ', '.');
         }
 
-        /// <summary>
-        /// Navigates to the parent directory of a given path by recursively combining path segments until only the root remains.
-        /// </summary>
-        /// <param name="path"></param>
-        /// <returns></returns>
+        /// <summary>Extracts the parent directory from a path string.</summary>
+        /// <param name="path">The full path.</param>
+        /// <returns>The parent directory path.</returns>
         public static string GoToParentDirectory(string path)
         {
             List<string> pathParts = path.Split('\\').ToList();
@@ -229,10 +219,9 @@ namespace Jelly_Software
             }
         }
 
-        /// <summary>
-        /// Clears a specified number of lines from the console, starting from the current cursor position and moving upwards.
-        /// </summary>
-        /// <param name="lineCount"></param>
+        /// <summary>Clears a specified number of lines upwards from the cursor.</summary>
+        /// <param name="lineCount">Number of lines to clear.</param>
+        /// <returns>Void.</returns>
         public static void ClearConsoleLines(int lineCount)
         {
             int currentTop = Console.CursorTop;
@@ -244,7 +233,7 @@ namespace Jelly_Software
 
                 Console.SetCursorPosition(0, targetTop);
                 // WindowWidth - 1 prevents auto-wrapping to the next row
-                Console.Write(new string(' ', Console.WindowWidth - 1));
+                Write(new string(' ', Console.WindowWidth - 1));
             }
 
             // Reset cursor to the top of the cleared block
@@ -252,14 +241,9 @@ namespace Jelly_Software
             Console.SetCursorPosition(0, resetTop);
         }
 
-        /// <summary>
-        /// Prompts the user with a question and waits for a confirmation input based on specified character answers.
-        /// </summary>
-        /// <param name="question"></param>
-        /// <param name="charAnswers"></param>
-        /// <param name="warnings"></param>
-        /// <returns></returns>
-        /// <exception cref="ArgumentException"></exception>
+        /// <summary>Prompts user for confirmation.</summary>
+        /// <param name="question">Prompt.</param> <param name="charAnswers">Valid keys.</param> <param name="warnings">Warnings.</param>
+        /// <returns>True if first option chosen, false otherwise.</returns>
         public static bool GetUserConfirmation(string[] question, char[] charAnswers, string[] warnings)
         {
             if (question.Length != 2)
@@ -347,13 +331,9 @@ namespace Jelly_Software
             return userInput;
         }
 
-        /// <summary>
-        /// Displays a countdown timer in the console for a specified duration, allowing optional manual interruption by the user.
-        /// </summary>
-        /// <param name="delayMs"></param>
-        /// <param name="allowManualBreak"></param>
-        /// <param name="customMessage"></param>
-        /// <param name="showColors"></param>
+        /// <summary>Displays an asynchronous countdown in the console.</summary>
+        /// <param name="delayMs">Delay.</param> <param name="allowManualBreak">Allow skip.</param>
+        /// <param name="customMessage">Message.</param> <param name="showColors">Use colors.</param>
         public static void Countdown(int delayMs, bool allowManualBreak, string customMessage = default!, bool showColors = true)
         {
             Console.CursorVisible = false;
