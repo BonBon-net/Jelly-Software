@@ -371,11 +371,11 @@ namespace Jelly_Software.AppSettings
 
                 // Render screen
                 Console.BackgroundColor = BackgroundColor;
-                Console.ForegroundColor = preBuildTools.EnsureContrast(ConsoleColor.Green);
+                Console.ForegroundColor = PreBuildTools.EnsureContrast(ConsoleColor.Green);
                 Console.Clear();
 
-                preBuildTools.Write($"{TxtFile.WelcomeMessage}\n> ", ConsoleColor.Green, !IsProgramInitialized);
-                preBuildTools.WriteLine(input);
+                PreBuildTools.Write($"{TxtFile.WelcomeMessage}\n> ", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
+                PreBuildTools.WriteLine(input, PreBuildTools.Setting.AllowColors);
 
                 writeSETTINGS();
 
@@ -452,19 +452,19 @@ namespace Jelly_Software.AppSettings
 
             void writeSETTINGS()
             {
-                preBuildTools.WriteLine($"\n'W' or '^' UP -- 'S' or 'v' DOWN -- 'A' or '<' Page Left -- 'D' or '>' Page Right\n'[ENTER]' or '[NUM PAD ENTER]' select -- '[ESCAPE]' or '[BACKSPACE]' Exit\n'[N]' or '[M]' adjust value or [ENTER] for default value\n\n============================== SETTINGS ({settingsPage}/{totalSettingsPages}) ==============================\n", ConsoleColor.Cyan, !IsProgramInitialized);
+                PreBuildTools.WriteLine($"\n'W' or '^' UP -- 'S' or 'v' DOWN -- 'A' or '<' Page Left -- 'D' or '>' Page Right\n'[ENTER]' or '[NUM PAD ENTER]' select -- '[ESCAPE]' or '[BACKSPACE]' Exit\n'[N]' or '[M]' adjust value or [ENTER] for default value\n\n============================== SETTINGS ({settingsPage}/{totalSettingsPages}) ==============================\n", ConsoleColor.Cyan, PreBuildTools.Setting.AllowColors);
 
                 writeSETTINGSPage();
 
-                preBuildTools.WriteLine("\n============================================================================", ConsoleColor.Cyan, !IsProgramInitialized);
+                PreBuildTools.WriteLine("\n============================================================================", ConsoleColor.Cyan, PreBuildTools.Setting.AllowColors);
             }
 
             void curser(int setting)
             {
                 if (settingsCursor == setting)
-                    preBuildTools.Write(">> ", ConsoleColor.Green, !IsProgramInitialized);
+                    PreBuildTools.Write(">> ".PadRight(3), ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
                 else
-                    Console.Write("   ");
+                    PreBuildTools.Write("".PadRight(3), ConsoleColor.White, PreBuildTools.Setting.AllowColors);
             }
 
             void settingSwitch(ConsoleKey key)
@@ -636,16 +636,16 @@ namespace Jelly_Software.AppSettings
                 if (settingsPage == 1)
                 {
                     curser(1);
-                    preBuildTools.Write(GetStatus(AllowColors), GetColor(AllowColors), !IsProgramInitialized);
-                    preBuildTools.WriteLine("| Allow Colors in Output", ConsoleColor.Green, !IsProgramInitialized);
+                    PreBuildTools.Write(GetStatus(AllowColors), GetColor(AllowColors), PreBuildTools.Setting.AllowColors);
+                    PreBuildTools.WriteLine("| Allow Colors in Output", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
 
                     curser(2);
-                    preBuildTools.Write(GetStatus(AllowBeep), GetColor(AllowBeep), !IsProgramInitialized);
-                    preBuildTools.WriteLine("| Allow Beep Sound Alerts", ConsoleColor.Green, !IsProgramInitialized);
+                    PreBuildTools.Write(GetStatus(AllowBeep), GetColor(AllowBeep), PreBuildTools.Setting.AllowColors);
+                    PreBuildTools.WriteLine("| Allow Beep Sound Alerts", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
 
                     curser(3);
-                    preBuildTools.Write(GetStatus(AllowShowInitializeProgress), GetColor(AllowShowInitializeProgress), !IsProgramInitialized);
-                    preBuildTools.WriteLine("| Show Initialization Progress", ConsoleColor.Green, !IsProgramInitialized);
+                    PreBuildTools.Write(GetStatus(AllowShowInitializeProgress), GetColor(AllowShowInitializeProgress), PreBuildTools.Setting.AllowColors);
+                    PreBuildTools.WriteLine("| Show Initialization Progress", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
 
                     curser(4);
                     TimeSpan time = TimeSpan.FromMilliseconds(InitializeProgressTimer);
@@ -658,40 +658,40 @@ namespace Jelly_Software.AppSettings
                     string formattedTime = string.Join(" ", timeParts);
 
                     // PadRight(10) ensures the string is always 10 characters wide before the " |"
-                    preBuildTools.Write(formattedTime.PadRight(maxStatusLength), ConsoleColor.Green, !IsProgramInitialized);
-                    preBuildTools.WriteLine("| Initialization Progress Timer", ConsoleColor.Green, !IsProgramInitialized);
+                    PreBuildTools.Write(formattedTime.PadRight(maxStatusLength), ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
+                    PreBuildTools.WriteLine("| Initialization Progress Timer", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
 
                     // Add this below curser(4) block
                     curser(5);
                     string bgColorName = BackgroundColor.ToString();
-                    preBuildTools.Write(bgColorName.PadRight(maxStatusLength), ConsoleColor.Green, !IsProgramInitialized);
-                    preBuildTools.WriteLine("| Application Background Color", ConsoleColor.Green, !IsProgramInitialized);
+                    PreBuildTools.Write(bgColorName.PadRight(maxStatusLength), ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
+                    PreBuildTools.WriteLine("| Application Background Color", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
 
                     // 1: allowSeasonYear
                     Console.WriteLine();
                     curser(6);
                     var allowSeasonYear = AllowSeasonYear;
-                    preBuildTools.Write(GetStatus(allowSeasonYear), GetColor(allowSeasonYear), !IsProgramInitialized);
-                    preBuildTools.WriteLine("| Allow Season Year", ConsoleColor.Green, !IsProgramInitialized);
+                    PreBuildTools.Write(GetStatus(allowSeasonYear), GetColor(allowSeasonYear), PreBuildTools.Setting.AllowColors);
+                    PreBuildTools.WriteLine("| Allow use of release year in season folder's naming", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
 
                     // 2: allowEpisodeYear
                     curser(7);
                     var allowEpYear = AllowEpisodeYear;
-                    preBuildTools.Write(GetStatus(allowEpYear), GetColor(allowEpYear), !IsProgramInitialized);
-                    preBuildTools.WriteLine("| Allow use of release year in naming", ConsoleColor.Green, !IsProgramInitialized);
+                    PreBuildTools.Write(GetStatus(allowEpYear), GetColor(allowEpYear), PreBuildTools.Setting.AllowColors);
+                    PreBuildTools.WriteLine("| Allow use of release year in episode file's naming", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
 
                     // 3: useEpisodeReleaseYear
                     curser(8);
                     if (allowEpYear == true)
                     {
                         var useEpRelease = UseEpisodeReleaseYear;
-                        preBuildTools.Write(GetStatus(useEpRelease), GetColor(useEpRelease), !IsProgramInitialized);
-                        preBuildTools.WriteLine($"| Use Episode Release Year (Using {useEpRelease switch { true => "Episode Year", false => "Tv Show Year", null => "Noting Selected" }})", ConsoleColor.Green, !IsProgramInitialized);
+                        PreBuildTools.Write(GetStatus(useEpRelease), GetColor(useEpRelease), PreBuildTools.Setting.AllowColors);
+                        PreBuildTools.WriteLine($"| Use Episode Release Year in episode file's naming (Using {useEpRelease switch { true => "Episode Year", false => "Tv Show Year", null => "Noting Selected" }})", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
                     }
                     else
                     {
-                        preBuildTools.Write("UNAVAILABLE".PadRight(maxStatusLength), ConsoleColor.Red, !IsProgramInitialized);
-                        preBuildTools.WriteLine($"| Use Episode Release Year (Disabled because Allow Episode Year is '{GetReason(allowEpYear)}')", ConsoleColor.Green, !IsProgramInitialized);
+                        PreBuildTools.Write("UNAVAILABLE".PadRight(maxStatusLength), ConsoleColor.Red, PreBuildTools.Setting.AllowColors);
+                        PreBuildTools.WriteLine($"| Use Episode Release Year (Disabled because Allow Episode Year is '{GetReason(allowEpYear)}')", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
                     }
 
                     // 4: dashBeforeReleaseYear
@@ -699,13 +699,13 @@ namespace Jelly_Software.AppSettings
                     if (allowEpYear == true)
                     {
                         var dashBeforeRelease = DashBeforeReleaseYear;
-                        preBuildTools.Write(GetStatus(dashBeforeRelease), GetColor(dashBeforeRelease), !IsProgramInitialized);
-                        preBuildTools.WriteLine("| Dash Before Release Year", ConsoleColor.Green, !IsProgramInitialized);
+                        PreBuildTools.Write(GetStatus(dashBeforeRelease), GetColor(dashBeforeRelease), PreBuildTools.Setting.AllowColors);
+                        PreBuildTools.WriteLine("| Use dash before release year in episode file's naming", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
                     }
                     else
                     {
-                        preBuildTools.Write("UNAVAILABLE".PadRight(12), ConsoleColor.Red, !IsProgramInitialized);
-                        preBuildTools.WriteLine($"| Dash Before Release Year (Disabled because Allow Episode Year is '{GetReason(allowEpYear)}')", ConsoleColor.Green, !IsProgramInitialized);
+                        PreBuildTools.Write("UNAVAILABLE".PadRight(12), ConsoleColor.Red, PreBuildTools.Setting.AllowColors);
+                        PreBuildTools.WriteLine($"| Use dash before release year in episode file's naming (Disabled because Allow Episode Year is '{GetReason(allowEpYear)}')", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
                     }
 
                     // 5: dashAfterReleaseYear
@@ -713,13 +713,13 @@ namespace Jelly_Software.AppSettings
                     if (allowEpYear == true)
                     {
                         var dashAfterRelease = DashAfterReleaseYear;
-                        preBuildTools.Write(GetStatus(dashAfterRelease), GetColor(dashAfterRelease), !IsProgramInitialized);
-                        preBuildTools.WriteLine("| Dash After Release Year", ConsoleColor.Green, !IsProgramInitialized);
+                        PreBuildTools.Write(GetStatus(dashAfterRelease), GetColor(dashAfterRelease), PreBuildTools.Setting.AllowColors);
+                        PreBuildTools.WriteLine("| Use dash after release year in episode file's naming", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
                     }
                     else
                     {
-                        preBuildTools.Write("UNAVAILABLE".PadRight(maxStatusLength), ConsoleColor.Red, !IsProgramInitialized);
-                        preBuildTools.WriteLine($"| Dash After Release Year (Disabled because Allow Episode Year is '{GetReason(allowEpYear)}')", ConsoleColor.Green, !IsProgramInitialized);
+                        PreBuildTools.Write("UNAVAILABLE".PadRight(maxStatusLength), ConsoleColor.Red, PreBuildTools.Setting.AllowColors);
+                        PreBuildTools.WriteLine($"| Use dash after release year in episode file's naming (Disabled because Allow Episode Year is '{GetReason(allowEpYear)}')", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
                     }
                 }
                 else if (settingsPage == 2)
@@ -727,34 +727,34 @@ namespace Jelly_Software.AppSettings
                     // 6: allowEpisodeName
                     curser(1);
                     var allowEpName = AllowEpisodeName;
-                    preBuildTools.Write(GetStatus(allowEpName), GetColor(allowEpName), !IsProgramInitialized);
-                    preBuildTools.WriteLine("| Allow Episode Name", ConsoleColor.Green, !IsProgramInitialized);
+                    PreBuildTools.Write(GetStatus(allowEpName), GetColor(allowEpName), PreBuildTools.Setting.AllowColors);
+                    PreBuildTools.WriteLine("| Allow episode name in episode file's naming", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
 
                     // 7: dashAfterSeasonEpisode
                     curser(2);
                     if (allowEpName == true)
                     {
                         var dashAfterSeason = DashAfterSeasonEpisode;
-                        preBuildTools.Write(GetStatus(dashAfterSeason), GetColor(dashAfterSeason), !IsProgramInitialized);
-                        preBuildTools.WriteLine("| Dash After Season Episode", ConsoleColor.Green, !IsProgramInitialized);
+                        PreBuildTools.Write(GetStatus(dashAfterSeason), GetColor(dashAfterSeason), PreBuildTools.Setting.AllowColors);
+                        PreBuildTools.WriteLine("| Use a dash after the SxxExx format in the file name.", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
                     }
                     else
                     {
-                        preBuildTools.Write("UNAVAILABLE".PadRight(maxStatusLength), ConsoleColor.Red, !IsProgramInitialized);
-                        preBuildTools.WriteLine($"| Dash After Season Episode (Disabled because Allow Episode Name is '{GetReason(allowEpName)}')", ConsoleColor.Green, !IsProgramInitialized);
+                        PreBuildTools.Write("UNAVAILABLE".PadRight(maxStatusLength), ConsoleColor.Red, PreBuildTools.Setting.AllowColors);
+                        PreBuildTools.WriteLine($"| Use a dash after the SxxExx format in the file name. (Disabled because Allow Episode Name is '{GetReason(allowEpName)}')", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
                     }
 
                     // 8: allowImdb
                     curser(3);
                     var allowImdb = AllowImdb;
-                    preBuildTools.Write(GetStatus(allowImdb), GetColor(allowImdb), !IsProgramInitialized);
-                    preBuildTools.WriteLine("| Allow IMDB", ConsoleColor.Green, !IsProgramInitialized);
+                    PreBuildTools.Write(GetStatus(allowImdb), GetColor(allowImdb), PreBuildTools.Setting.AllowColors);
+                    PreBuildTools.WriteLine("| Allow IMDB ('[imdbid-]')", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
 
                     // 9: dashBeforeImdb
                     curser(4);
                     var dashBeforeImdb = DashBeforeImdb;
-                    preBuildTools.Write(GetStatus(dashBeforeImdb), GetColor(dashBeforeImdb), !IsProgramInitialized);
-                    preBuildTools.WriteLine("| Dash Before IMDB", ConsoleColor.Green, !IsProgramInitialized);
+                    PreBuildTools.Write(GetStatus(dashBeforeImdb), GetColor(dashBeforeImdb), PreBuildTools.Setting.AllowColors);
+                    PreBuildTools.WriteLine("| Use dash before IMDB in episode file's naming", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
                 }
             }
         }
@@ -766,15 +766,15 @@ namespace Jelly_Software.AppSettings
         /// <exception cref="FileNotFoundException"></exception>
         public void VerifyDatabaseDirectories()
         {
-            if (IsProgramInitialized)
-            {
-                // Check if the database and directories exist
-                if (!Directory.Exists(DatabaseDirectory))
-                    throw new DirectoryNotFoundException($"{DatabaseDirectory} directory not found.");
+            // Ensure the database directory exists
+            if (!Directory.Exists(DatabaseDirectory))
+                Directory.CreateDirectory(DatabaseDirectory); // Create the database directory if it doesn't exist
 
-                // Check if the required settings files exist
-                if (!File.Exists(FilePath))
-                    throw new FileNotFoundException($"{FilePath.Split('\\').Last()} not found in {FilePath}");
+            // Ensure the settings file exists
+            if (!File.Exists(FilePath))
+            {
+                File.Create(FilePath).Close(); // Create the settings file if it doesn't exist
+                Save(); // Save default settings to the newly created file
             }
         }
 

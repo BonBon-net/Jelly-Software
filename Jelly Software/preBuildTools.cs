@@ -5,14 +5,14 @@ using System.Timers;
 
 namespace Jelly_Software
 {
-    public static class preBuildTools
+    public static class PreBuildTools
     {
         /// <summary>
         /// Default configuration for console background color and color allowance.
         /// </summary>
         public static Setting Setting = new();
 
-        private static readonly ConsoleColor DefaltForegroundColor = Console.ForegroundColor;
+        private static readonly ConsoleColor DefaltForegroundColor = ConsoleColor.White;
         private static readonly bool DefaltAllowColors = true;
 
         /// <summary>Ensures the text color contrasts with the console background.</summary>
@@ -45,11 +45,11 @@ namespace Jelly_Software
         /// <param name="allowColors">Whether to allow color rendering.</param>
         public static void WriteLine()
         {
-            WriteLine(string.Empty, DefaltForegroundColor, DefaltAllowColors);
+            WriteLine(string.Empty, DefaltForegroundColor, Setting.AllowColors);
         }
         public static void WriteLine(string text)
         {
-            WriteLine(text, DefaltForegroundColor, DefaltAllowColors);
+            WriteLine(text, DefaltForegroundColor, Setting.AllowColors);
         }
         public static void WriteLine(string text, bool allowColors)
         {
@@ -63,16 +63,15 @@ namespace Jelly_Software
         {
             if (AllowColors)
             {
-                ConsoleColor previousForeground = Console.ForegroundColor;
-
                 // Route the requested color through the contrast check
                 Console.ForegroundColor = EnsureContrast(color);
                 Console.WriteLine(text);
 
-                Console.ForegroundColor = previousForeground;
+                Console.ForegroundColor = DefaltForegroundColor;
             }
             else
             {
+                Console.ForegroundColor = DefaltForegroundColor;
                 Console.WriteLine(text);
             }
         }
@@ -82,7 +81,7 @@ namespace Jelly_Software
         /// <param name="allowColors">Whether to allow color rendering.</param>
         public static void Write(string text)
         {
-            Write(text, DefaltForegroundColor, DefaltAllowColors);
+            Write(text, DefaltForegroundColor, Setting.AllowColors);
         }
         public static void Write(string text, bool allowColors)
         {
@@ -96,16 +95,15 @@ namespace Jelly_Software
         {
             if (AllowColors)
             {
-                ConsoleColor previousForeground = Console.ForegroundColor;
-
                 // Route the requested color through the contrast check
                 Console.ForegroundColor = EnsureContrast(color);
                 Console.Write(text);
 
-                Console.ForegroundColor = previousForeground;
+                Console.ForegroundColor = DefaltForegroundColor;
             }
             else
             {
+                Console.ForegroundColor = DefaltForegroundColor;
                 Console.Write(text);
             }
         }
@@ -334,7 +332,31 @@ namespace Jelly_Software
         /// <summary>Displays an asynchronous countdown in the console.</summary>
         /// <param name="delayMs">Delay.</param> <param name="allowManualBreak">Allow skip.</param>
         /// <param name="customMessage">Message.</param> <param name="showColors">Use colors.</param>
-        public static void Countdown(int delayMs, bool allowManualBreak, string customMessage = default!, bool showColors = true)
+        private static readonly int DefaultDelayMs = 5000;
+        private static readonly bool DefaultAllowManualBreak = true;
+        private static readonly string DefaultCustomMessage = string.Empty;
+        private static readonly bool DefaultShowColors = true;
+        public static void Countdown()
+        {
+            Countdown(DefaultDelayMs, DefaultAllowManualBreak, DefaultCustomMessage, DefaultShowColors);
+        }
+        public static void Countdown(int delayMs)
+        {
+            Countdown(delayMs, DefaultAllowManualBreak, DefaultCustomMessage, DefaultShowColors);
+        }
+        public static void Countdown(int delayMs, string customMessage)
+        {
+            Countdown(delayMs, DefaultAllowManualBreak, customMessage, DefaultShowColors);
+        }
+        public static void Countdown(int delayMs, bool allowManualBreak)
+        {
+            Countdown(delayMs, allowManualBreak, DefaultCustomMessage, DefaultShowColors);
+        }
+        public static void Countdown(int delayMs, bool allowManualBreak, string customMessage)
+        {
+            Countdown(delayMs, allowManualBreak, customMessage, DefaultShowColors);
+        }
+        public static void Countdown(int delayMs, bool allowManualBreak, string customMessage, bool showColors)
         {
             Console.CursorVisible = false;
 
