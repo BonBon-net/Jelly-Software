@@ -362,18 +362,12 @@ namespace Jelly_Software
 
             if (allowManualBreak)
             {
-                if (showColors)
-                    WriteLine($"[COUNTDOWN] Press [ESC], [ENTER], [SPACEBAR], or [BACKSPACE] to break the countdown.", ConsoleColor.Yellow, !Setting.IsProgramInitialized);
-                else
-                    WriteLine($"[COUNTDOWN] Press [ESC], [ENTER], [SPACEBAR], or [BACKSPACE] to break the countdown.", !Setting.IsProgramInitialized);
+                WriteLine($"[COUNTDOWN] Press [ESC], [ENTER], [SPACEBAR], or [BACKSPACE] to break the countdown.", ConsoleColor.Yellow, showColors);
             }
 
             if (!string.IsNullOrEmpty(customMessage?.Trim()))
             {
-                if (showColors)
-                    WriteLine(customMessage.Trim(), ConsoleColor.Cyan, !Setting.IsProgramInitialized);
-                else
-                    WriteLine(customMessage.Trim(), !Setting.IsProgramInitialized);
+                WriteLine(customMessage.Trim(), ConsoleColor.Cyan, showColors);
             }
             // Run the countdown task unconditionally. The break logic is handled inside.
             waitCountdown(delayMs).Wait();
@@ -420,10 +414,7 @@ namespace Jelly_Software
                     formattedTime += $"{remaining.Milliseconds}ms";
 
                     ClearConsoleLines(0);
-                    if (showColors)
-                        Write($"[COUNTDOWN] Remaining time: {formattedTime}", ConsoleColor.Cyan, !Setting.IsProgramInitialized);
-                    else
-                        Write($"[COUNTDOWN] Remaining time: {formattedTime}", !Setting.IsProgramInitialized);
+                    Write($"[COUNTDOWN] Remaining time: {formattedTime}", ConsoleColor.Cyan, showColors);
 
                     await Task.Delay(15);
                 }

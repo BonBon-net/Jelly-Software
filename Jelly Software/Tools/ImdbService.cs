@@ -172,9 +172,7 @@ namespace Jelly_Software.Tools
                                 else
                                 {
                                     if (!searchResults.Any(s => s.ImdbId.Equals(res.ImdbId, StringComparison.OrdinalIgnoreCase)))
-                                    {
                                         searchResults.Add(res);
-                                    }
                                 }
                             }
 
@@ -229,9 +227,7 @@ namespace Jelly_Software.Tools
 
                                 PreBuildTools.WriteLine("\nFound multiple possibilities. Please confirm which series this is:", ConsoleColor.Green);
                                 for (int i = 0; i < searchResults.Count; i++)
-                                {
                                     PreBuildTools.WriteLine($"  [{i + 1}] {searchResults[i].Title} ({searchResults[i].Year}) - IMDb ID: {searchResults[i].ImdbId}", ConsoleColor.Green);
-                                }
                                 PreBuildTools.WriteLine("  [0] None of these (Cancel)", ConsoleColor.Green);
 
                                 int selectedIdx = -1;
@@ -242,9 +238,7 @@ namespace Jelly_Software.Tools
                                     string choice = Console.ReadLine()?.Trim() ?? string.Empty;
 
                                     if (int.TryParse(choice, out selectedIdx) && selectedIdx >= 0 && selectedIdx <= searchResults.Count)
-                                    {
                                         break;
-                                    }
 
                                     // Dev Note: Check dev configuration before issuing sound alert
                                     if (PreBuildTools.Setting.AllowBeep)
@@ -271,9 +265,7 @@ namespace Jelly_Software.Tools
                                     bool replaceImdb = PreBuildTools.GetUserConfirmation(repQ, repA, new string[] { });
 
                                     if (replaceImdb == true)
-                                    {
                                         imdbId = newImdbId;
-                                    }
                                     else
                                     {
                                         PreBuildTools.WriteLine(OperationCancelled, ConsoleColor.Green);
@@ -282,9 +274,7 @@ namespace Jelly_Software.Tools
                                     }
                                 }
                                 else if (!isPlaceholderImdb && !imdbId.Equals(newImdbId, StringComparison.OrdinalIgnoreCase))
-                                {
                                     imdbId = newImdbId;
-                                }
 
                                 showMetadata = await GetShowAsync(imdbId, tvShowFolderName);
                             }
@@ -314,21 +304,15 @@ namespace Jelly_Software.Tools
 
                             showMetadata.FolderPath = folderPath;
                             if (_RateLimitHit)
-                            {
                                 PreBuildTools.WriteLine($"\n\n\n\nShow Title: {showMetadata.ShowTitle}", ConsoleColor.Green);
-                            }
                             else
-                            {
                                 PreBuildTools.WriteLine($"\nShow Title: {showMetadata.ShowTitle}", ConsoleColor.Green);
-                            }
 
                             foreach (var season in showMetadata.Seasons)
                             {
                                 PreBuildTools.WriteLine($"\n         Season {season.SeasonNumber} ({season.SeasonYear}):", ConsoleColor.DarkCyan);
                                 foreach (var episode in season.Episodes)
-                                {
                                     PreBuildTools.WriteLine($"  Episode {episode.EpisodeNumber}: {episode.EpisodeTitle} ({episode.EpisodeYear}) - IMDb ID: {episode.EpisodeImdbId}", ConsoleColor.Green);
-                                }
                             }
 
                             PreBuildTools.WriteLine($"\n\n Show Year: {showMetadata.ShowYear}", ConsoleColor.Green);
@@ -466,7 +450,7 @@ namespace Jelly_Software.Tools
                                 }
 
                                 // curser 9
-                                if (dashBeforeImdb == null || (dashBeforeImdb == false && hasFileImdbIds))
+                                if (dashBeforeImdb == null)
                                 {
                                     Console.WriteLine();
                                     if (hasFileImdbIds)
@@ -563,22 +547,16 @@ namespace Jelly_Software.Tools
                     };
 
                     if (showNode.TryGetProperty("type", out var typeNode) && typeNode.ValueKind == JsonValueKind.String)
-                    {
                         result.Type = typeNode.GetString() ?? string.Empty;
-                    }
 
                     if (showNode.TryGetProperty("premiered", out var p) && p.ValueKind == JsonValueKind.String)
-                    {
                         if (DateTime.TryParse(p.GetString(), out DateTime date))
                             result.Year = date.Year;
-                    }
 
-                    if (showNode.TryGetProperty("externals", out var ext) &&
-                        ext.TryGetProperty("imdb", out var imdbNode) &&
+                    if (showNode.TryGetProperty("externals", out var ext)
+                        && ext.TryGetProperty("imdb", out var imdbNode) &&
                         imdbNode.ValueKind == JsonValueKind.String)
-                    {
                         result.ImdbId = imdbNode.GetString() ?? string.Empty;
-                    }
 
                     if (!string.IsNullOrEmpty(result.ImdbId))
                         results.Add(result);
@@ -596,25 +574,17 @@ namespace Jelly_Software.Tools
             queriesToTry.Add(showName);
 
             if (showName.EndsWith("s", StringComparison.OrdinalIgnoreCase) && showName.Length > 3)
-            {
                 queriesToTry.Add(showName.Substring(0, showName.Length - 1));
-            }
 
             if (showName.StartsWith("The ", StringComparison.OrdinalIgnoreCase))
-            {
                 queriesToTry.Add(showName.Substring(4).Trim());
-            }
 
             foreach (var q in queriesToTry)
             {
                 var partialResults = await SearchTvMazeAsync(q);
                 foreach (var res in partialResults)
-                {
                     if (!allResults.Any(r => r.ImdbId.Equals(res.ImdbId, StringComparison.OrdinalIgnoreCase)))
-                    {
                         allResults.Add(res);
-                    }
-                }
             }
 
             return allResults.OrderBy(r => r.Year).ToList();
@@ -974,7 +944,7 @@ namespace Jelly_Software.Tools
             }
         }
 
-        private static async Task<ShowMediaMetadata> GetShowAsync(string imdbId, string folderPath = "")
+        private static async Task<ShowMediaMetadata> GetShowAsync(string imdbId, string folderPath)
         {
             var show = new ShowMediaMetadata
             {
@@ -1112,7 +1082,7 @@ namespace Jelly_Software.Tools
                         delayMs += (int)response.Headers.RetryAfter.Delta.Value.TotalMilliseconds * 10;
                     }
 
-                    PreBuildTools.Countdown(delayMs, PreBuildTools.Setting.AllowColors, "Rate limit reached (429). Retrying...");
+                    PreBuildTools.Countdown(delayMs, false, "Rate limit reached (429). Retrying...", PreBuildTools.Setting.AllowColors);
 
                     PreBuildTools.Write($"\rRate limit reached (429). Retrying in: 0ms".PadRight(95), ConsoleColor.Yellow);
                     // Dev Note: Check dev configuration before issuing sound alert
@@ -1191,7 +1161,7 @@ namespace Jelly_Software.Tools
 
                 foreach (var filePath in videoFiles)
                 {
-                    Task.Delay(5).Wait(); // Introduce a small delay to avoid overwhelming the file & encounter error '429' system
+                    Task.Delay(15).Wait(); // Introduce a small delay to avoid overwhelming the file & encounter error '429' system
 
                     string fileName = Path.GetFileName(filePath);
                     string nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);

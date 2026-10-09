@@ -686,7 +686,7 @@ namespace Jelly_Software.AppSettings
                     {
                         var useEpRelease = UseEpisodeReleaseYear;
                         PreBuildTools.Write(GetStatus(useEpRelease), GetColor(useEpRelease), PreBuildTools.Setting.AllowColors);
-                        PreBuildTools.WriteLine($"| Use Episode Release Year in episode file's naming (Using {useEpRelease switch { true => "Episode Year", false => "Tv Show Year", null => "Noting Selected" }})", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
+                        PreBuildTools.WriteLine($"| Use Episode Release Year in episode file's naming ({useEpRelease switch { true => "Using Episode Year", false => "Using Tv Show Year", null => "Noting Selected" }})", ConsoleColor.Green, PreBuildTools.Setting.AllowColors);
                     }
                     else
                     {
